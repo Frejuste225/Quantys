@@ -607,8 +607,8 @@ const SageInventoryApp = () => {
                                         <p className="text-2xl font-bold text-green-900">{processResult.stats.adjusted_items}</p>
                                     </div>
                                     <div className="bg-white rounded-lg p-4 border border-green-200 shadow-sm">
-                                        <p className="text-sm text-green-700 font-medium">Fichier généré</p>
-                                        <p className="text-sm font-mono text-green-900 break-all">Téléchargement ci-dessous</p>
+                                        <p className="text-sm text-green-700 font-medium">Stratégie utilisée</p>
+                                        <p className="text-lg font-bold text-green-900">{processResult.stats.strategy_used || 'FIFO'}</p>
                                     </div>
                                 </div>
 

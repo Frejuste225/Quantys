@@ -148,16 +148,20 @@ class DataValidator:
             # Vérification des valeurs manquantes
             missing_qty = real_qty.isna()
             if missing_qty.any():
-                missing_articles = df.loc[missing_qty, 'Code Article'].tolist()
-                errors.append(f"Quantités réelles manquantes pour: {', '.join(map(str, missing_articles[:5]))}")
-                if len(missing_articles) > 5:
-                    errors.append(f"... et {len(missing_articles) - 5} autres articles")
+                missing_info = df.loc[missing_qty, ['Code Article', 'Numéro Inventaire']].apply(
+                    lambda x: f"{x['Code Article']} (Inv: {x['Numéro Inventaire']})", axis=1
+                ).tolist()
+                errors.append(f"Quantités réelles manquantes pour: {', '.join(map(str, missing_info[:5]))}")
+                if len(missing_info) > 5:
+                    errors.append(f"... et {len(missing_info) - 5} autres articles")
             
             # Vérification des valeurs négatives
             negative_qty = real_qty < 0
             if negative_qty.any():
-                negative_articles = df.loc[negative_qty, 'Code Article'].tolist()
-                errors.append(f"Quantités négatives pour: {', '.join(map(str, negative_articles[:5]))}")
+                negative_info = df.loc[negative_qty, ['Code Article', 'Numéro Inventaire']].apply(
+                    lambda x: f"{x['Code Article']} (Inv: {x['Numéro Inventaire']})", axis=1
+                ).tolist()
+                errors.append(f"Quantités négatives pour: {', '.join(map(str, negative_info[:5]))}")
         
         is_valid = len(errors) == 0
         message = "Template valide" if is_valid else "Erreurs détectées"

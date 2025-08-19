@@ -12,8 +12,10 @@
 | Fonctionnalité | Description | Technologies |
 |----------------|------------|--------------|
 | **Import Sage X3** | Traitement des fichiers CSV avec en-têtes E/L et données S | Pandas, OpenPyXL |
+| **Gestion Multi-Inventaires** | Support des fichiers avec plusieurs lignes L (inventaires multiples) | Python, Pandas |
+| **Types de Lots Avancés** | Reconnaissance de 3 types de numéros de lot avec priorités | RegEx, Python |
 | **Calcul Automatique** | Détection des écarts entre stocks théoriques/réels | NumPy, Pandas |
-| **Répartition Intelligente** | Distribution FIFO/LIFO des écarts par ancienneté des lots | Python, Pandas |
+| **Répartition Intelligente** | Distribution FIFO/LIFO avec priorité sur les types de lots | Python, Pandas |
 | **API RESTful** | Interface moderne pour intégration | Flask, CORS |
 | **Gestion de Sessions** | Suivi complet des opérations | Python, Logging |
 
@@ -48,6 +50,32 @@ python app.py
 ```
 
 ## 📚 Utilisation
+
+### Types de Numéros de Lot Supportés
+
+L'application reconnaît et traite 3 types de numéros de lot avec ordre de priorité :
+
+1. **Type 1 (Priorité Haute)** : `CPKU070725xxxx`, `CB2TV020425xxxx`
+   - Format : `[SITE][DDMMYY][NUMERO]`
+   - Extraction automatique de la date pour tri FIFO/LIFO
+
+2. **Type 2 (Priorité Moyenne)** : `LOT311224`
+   - Format : `LOT[DDMMYY]`
+   - Extraction de la date pour tri chronologique
+
+3. **Type 3 (Priorité Basse)** : `LOTECART`
+   - Pas de date, traitement au premier lot disponible
+
+### Gestion des Inventaires Multiples
+
+Support des fichiers avec plusieurs lignes L :
+```csv
+E;BKE022508SES00000003;test depot conf;1;BKE02;;;;;;;;;;
+L;BKE022508SES00000003;BKE022508INV00000006;1;BKE02;;;;;;;;;;
+L;BKE022508SES00000003;BKE022508INV00000007;1;BKE02;;;;;;;;;;
+S;BKE022508SES00000003;BKE022508INV00000006;1000;BKE02;...
+S;BKE022508SES00000003;BKE022508INV00000007;2000;BKE02;...
+```
 
 sequenceDiagram
     Utilisateur->>Backend: 1. Upload fichier CSV

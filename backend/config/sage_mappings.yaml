@@ -24,6 +24,7 @@ sage_x3:
   processing:
     aggregation_keys:
       - CODE_ARTICLE
+      - NUMERO_INVENTAIRE
       - STATUT
       - EMPLACEMENT
       - ZONE_PK
@@ -34,6 +35,18 @@ sage_x3:
       - LIFO
       
   lot_patterns:
-    # Pattern pour extraire les dates des numéros de lot
+    # Patterns pour les différents types de lots
+    type1_pattern: '^([A-Z0-9]{3,4})(\d{6})(\d+)$'  # Site + DDMMYY + numéro
+    type2_pattern: '^LOT(\d{6})$'                    # LOT + DDMMYY
+    type3_pattern: '^LOTECART$'                      # LOTECART (pas de date)
+    # Pattern legacy pour compatibilité
     cpku_pattern: 'CPKU\d{3}(\d{2})(\d{2})\d{4}'
     inventory_date_pattern: '(\d{2})(\d{2})INV'
+    
+  lot_priority:
+    # Ordre de priorité pour la répartition des écarts
+    - type1  # Lots avec site + date (priorité maximale)
+    - type2  # Lots LOT + date
+    - type3  # Lots LOTECART (pas de date, premier disponible)
+    - legacy # Ancien format pour compatibilité
+    - unknown # Lots non reconnus

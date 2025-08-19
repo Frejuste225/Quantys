@@ -80,6 +80,10 @@ class ConfigService:
         """Retourne les patterns pour l'extraction des dates de lot"""
         return self._config.get('sage_x3', {}).get('lot_patterns', {})
     
+    def get_lot_priority(self) -> List[str]:
+        """Retourne l'ordre de priorité des types de lots"""
+        return self._config.get('sage_x3', {}).get('lot_priority', ['type1', 'type2', 'type3', 'legacy', 'unknown'])
+    
     def reload_config(self):
         """Recharge la configuration depuis le fichier"""
         self.load_config()

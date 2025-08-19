@@ -127,7 +127,7 @@ class SageX3Processor:
             raise
     
     def distribute_discrepancies(self, session_id: str, strategy: str = 'FIFO'):
-        """Distribue les écarts selon la stratégie choisie (FIFO/LIFO)"""
+        """Distribue les écarts selon la stratégie choisie avec priorité sur les types de lots"""
         try:
             session_data = self.sessions.get(session_id, {})
             if 'discrepancies_df' not in session_data or 'original_df' not in session_data:
@@ -141,24 +141,26 @@ class SageX3Processor:
             
             for _, discrepancy_row in discrepancies_df.iterrows():
                 code_article = discrepancy_row['Code Article']
+                numero_inventaire = discrepancy_row.get('Numéro Inventaire', '')
                 ecart = discrepancy_row['Écart']
                 
                 if ecart == 0:
                     continue
                 
-                # Trouver tous les lots pour cet article
-                article_lots = original_df[original_df['CODE_ARTICLE'] == code_article].copy()
+                # Trouver tous les lots pour cet article et cet inventaire
+                if numero_inventaire:
+                    article_lots = original_df[
+                        (original_df['CODE_ARTICLE'] == code_article) & 
+                        (original_df['NUMERO_INVENTAIRE'] == numero_inventaire)
+                    ].copy()
+                else:
+                    article_lots = original_df[original_df['CODE_ARTICLE'] == code_article].copy()
                 
                 if article_lots.empty:
                     continue
                 
-                # Trier selon la stratégie
-                if strategy == 'FIFO':
-                    # Plus anciens d'abord (dates les plus anciennes)
-                    article_lots = article_lots.sort_values('Date_Lot', na_position='last')
-                else:  # LIFO
-                    # Plus récents d'abord (dates les plus récentes)
-                    article_lots = article_lots.sort_values('Date_Lot', ascending=False, na_position='last')
+                # Trier selon la priorité des types de lots et la stratégie
+                article_lots = self._sort_lots_by_priority_and_strategy(article_lots, strategy)
                 
                 # Distribuer l'écart
                 remaining_discrepancy = ecart
@@ -179,7 +181,9 @@ class SageX3Processor:
                     if abs(adjustment) > 0.001:
                         adjustments.append({
                             'CODE_ARTICLE': code_article,
+                            'NUMERO_INVENTAIRE': numero_inventaire,
                             'NUMERO_LOT': lot_row['NUMERO_LOT'],
+                            'TYPE_LOT': lot_row.get('Type_Lot', 'unknown'),
                             'QUANTITE_ORIGINALE': lot_quantity,
                             'AJUSTEMENT': adjustment,
                             'QUANTITE_CORRIGEE': lot_quantity + adjustment,
@@ -202,6 +206,41 @@ class SageX3Processor:
         except Exception as e:
             logger.error(f"Erreur distribution écarts: {e}")
             raise
+    
+    def _sort_lots_by_priority_and_strategy(self, lots_df: pd.DataFrame, strategy: str) -> pd.DataFrame:
+        """Trie les lots selon la priorité des types et la stratégie FIFO/LIFO"""
+        # Définir l'ordre de priorité des types de lots
+        type_priority = {'type1': 1, 'type2': 2, 'type3': 3, 'legacy': 4, 'unknown': 5}
+        
+        # Ajouter une colonne de priorité
+        lots_df['priority'] = lots_df.get('Type_Lot', 'unknown').map(type_priority).fillna(5)
+        
+        # Trier d'abord par priorité de type, puis par date selon la stratégie
+        if strategy == 'FIFO':
+            # Type prioritaire d'abord, puis plus anciens d'abord
+            sorted_lots = lots_df.sort_values(
+                ['priority', 'Date_Lot'], 
+                na_position='last'
+            )
+        else:  # LIFO
+            # Type prioritaire d'abord, puis plus récents d'abord
+            sorted_lots = lots_df.sort_values(
+                ['priority', 'Date_Lot'], 
+                ascending=[True, False],
+                na_position='last'
+            )
+        
+        # Pour les lots de type3 (LOTECART), on ignore la date et on prend le premier disponible
+        type3_lots = sorted_lots[sorted_lots.get('Type_Lot', '') == 'type3']
+        other_lots = sorted_lots[sorted_lots.get('Type_Lot', '') != 'type3']
+        
+        # Recombiner : autres lots triés + lots type3 en premier disponible
+        if not type3_lots.empty:
+            result = pd.concat([other_lots, type3_lots], ignore_index=True)
+        else:
+            result = other_lots
+        
+        return result.drop('priority', axis=1, errors='ignore')
     
     def generate_final_file(self, session_id: str):
         """Génère le fichier CSV final au format Sage X3"""

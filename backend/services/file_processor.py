@@ -21,6 +21,12 @@ class FileProcessorService:
         self.processing_config = config_service.get_processing_config()
         self.lot_patterns = config_service.get_lot_patterns()
         
+        # Patterns pour les différents types de lots
+        self.LOT_PATTERNS = {
+            'type1': r'^([A-Z0-9]{3,4})(\d{6})(\d+)$',  # CPKU070725xxxx, CB2TV020425xxxx, etc.
+            'type2': r'^LOT(\d{6})$',                    # LOT311224
+            'type3': r'^LOTECART$'                       # LOTECART
+        }
         logger.info(f"FileProcessorService initialisé avec {len(self.SAGE_COLUMN_NAMES_ORDERED)} colonnes attendues")
         logger.info(f"Colonnes: {self.SAGE_COLUMN_NAMES_ORDERED}")
     
@@ -278,29 +284,68 @@ class FileProcessorService:
         df['QUANTITE'] = pd.to_numeric(df['QUANTITE'], errors='coerce')
         
         # Extraction des dates de lot
-        df['Date_Lot'] = df['NUMERO_LOT'].apply(self._extract_date_from_lot)
+        lot_info = df['NUMERO_LOT'].apply(self._extract_date_from_lot)
+        df['Date_Lot'] = lot_info.apply(lambda x: x[0] if x else None)
+        df['Type_Lot'] = lot_info.apply(lambda x: x[1] if x else 'unknown')
         
         # Ajout des lignes originales
         df['original_s_line_raw'] = original_lines
         
         return df
     
-    def _extract_date_from_lot(self, lot_number: str) -> Union[datetime, None]:
-        """Extrait une date d'un numéro de lot Sage X3"""
+    def _extract_date_from_lot(self, lot_number: str) -> Tuple[Union[datetime, None], str]:
+        """
+        Extrait une date d'un numéro de lot Sage X3 selon les différents types
+        Retourne (date, type_lot)
+        """
         if pd.isna(lot_number):
-            return None
+            return None, 'unknown'
         
-        # Pattern depuis la configuration
+        lot_str = str(lot_number).strip()
+        
+        # Type 1: Lots avec site + date + numéro (ex: CPKU070725xxxx, CB2TV020425xxxx)
+        type1_match = re.match(self.LOT_PATTERNS['type1'], lot_str)
+        if type1_match:
+            site_code = type1_match.group(1)
+            date_part = type1_match.group(2)  # DDMMYY
+            try:
+                day = int(date_part[:2])
+                month = int(date_part[2:4])
+                year = int(date_part[4:6]) + 2000
+                return datetime(year, month, day), 'type1'
+            except ValueError:
+                logger.warning(f"Date invalide dans le lot type 1: {lot_number}")
+                return None, 'type1'
+        
+        # Type 2: LOT + date (ex: LOT311224)
+        type2_match = re.match(self.LOT_PATTERNS['type2'], lot_str)
+        if type2_match:
+            date_part = type2_match.group(1)  # DDMMYY
+            try:
+                day = int(date_part[:2])
+                month = int(date_part[2:4])
+                year = int(date_part[4:6]) + 2000
+                return datetime(year, month, day), 'type2'
+            except ValueError:
+                logger.warning(f"Date invalide dans le lot type 2: {lot_number}")
+                return None, 'type2'
+        
+        # Type 3: LOTECART (pas de date)
+        if re.match(self.LOT_PATTERNS['type3'], lot_str):
+            return None, 'type3'
+        
+        # Ancien pattern pour compatibilité (à supprimer progressivement)
         pattern = self.lot_patterns.get('cpku_pattern', r'CPKU\d{3}(\d{2})(\d{2})\d{4}')
-        match = re.search(pattern, str(lot_number))
+        match = re.search(pattern, lot_str)
         if match:
             try:
                 month = int(match.group(1))
                 year = int(match.group(2)) + 2000
-                return datetime(year, month, 1)
+                return datetime(year, month, 1), 'legacy'
             except ValueError:
                 logger.warning(f"Date invalide dans le lot: {lot_number}")
-        return None
+        
+        return None, 'unknown'
     
     def _extract_inventory_date(self, numero_inventaire: str, session_timestamp: datetime) -> Union[date, None]:
         """Extrait la date d'inventaire du numéro d'inventaire"""
@@ -321,7 +366,7 @@ class FileProcessorService:
         return None
     
     def aggregate_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Agrège les données par clés métier"""
+        """Agrège les données par clés métier en tenant compte des inventaires multiples"""
         try:
             if df.empty:
                 raise ValueError("DataFrame vide pour l'agrégation")
@@ -331,12 +376,16 @@ class FileProcessorService:
                 'CODE_ARTICLE', 'STATUT', 'EMPLACEMENT', 'ZONE_PK', 'UNITE'
             ])
             
+            # Ajouter NUMERO_INVENTAIRE aux clés d'agrégation pour gérer les inventaires multiples
+            if 'NUMERO_INVENTAIRE' not in aggregation_keys:
+                aggregation_keys.append('NUMERO_INVENTAIRE')
+            
             aggregated = df.groupby(aggregation_keys).agg(
                 Quantite_Theorique_Totale=('QUANTITE', 'sum'),
                 Numero_Session=('NUMERO_SESSION', 'first'),
-                Numero_Inventaire=('NUMERO_INVENTAIRE', 'first'),
                 Site=('SITE', 'first'),
-                Date_Min=('Date_Lot', lambda x: min(d for d in x if d is not None) if any(d for d in x if d is not None) else None)
+                Date_Min=('Date_Lot', lambda x: min(d for d in x if d is not None) if any(d for d in x if d is not None) else None),
+                Type_Lot_Prioritaire=('Type_Lot', lambda x: self._get_priority_lot_type(x.tolist()))
             ).reset_index()
             
             return aggregated.sort_values('Date_Min', na_position='last')
@@ -344,6 +393,16 @@ class FileProcessorService:
         except Exception as e:
             logger.error(f"Erreur d'agrégation: {str(e)}", exc_info=True)
             raise
+    
+    def _get_priority_lot_type(self, lot_types: List[str]) -> str:
+        """Détermine le type de lot prioritaire selon la hiérarchie"""
+        priority_order = ['type1', 'type2', 'type3', 'legacy', 'unknown']
+        
+        for priority_type in priority_order:
+            if priority_type in lot_types:
+                return priority_type
+        
+        return 'unknown'
     
     def generate_template(self, aggregated_df: pd.DataFrame, session_id: str, output_folder: str) -> str:
         """Génère un template Excel pour la saisie"""
@@ -353,12 +412,14 @@ class FileProcessorService:
             
             # Récupérer les métadonnées
             session_num = aggregated_df['Numero_Session'].iloc[0]
-            inventory_num = aggregated_df['Numero_Inventaire'].iloc[0]
+            # Gérer les inventaires multiples
+            inventory_nums = aggregated_df['NUMERO_INVENTAIRE'].unique()
+            inventory_num = inventory_nums[0] if len(inventory_nums) == 1 else f"MULTI_{len(inventory_nums)}"
             site_code = aggregated_df['Site'].iloc[0]
             
             template_data = {
                 'Numéro Session': [session_num] * len(aggregated_df),
-                'Numéro Inventaire': [inventory_num] * len(aggregated_df),
+                'Numéro Inventaire': aggregated_df['NUMERO_INVENTAIRE'].tolist(),
                 'Code Article': aggregated_df['CODE_ARTICLE'],
                 'Statut Article': aggregated_df['STATUT'],
                 'Quantité Théorique': 0,
@@ -366,6 +427,7 @@ class FileProcessorService:
                 'Unites': aggregated_df['UNITE'],
                 'Depots': aggregated_df['ZONE_PK'],
                 'Emplacements': aggregated_df['EMPLACEMENT'],
+                'Type Lot': aggregated_df['Type_Lot_Prioritaire']
             }
             
             template_df = pd.DataFrame(template_data)
