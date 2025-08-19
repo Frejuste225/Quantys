@@ -21,6 +21,10 @@ class FileProcessorService:
         self.processing_config = config_service.get_processing_config()
         self.lot_patterns = config_service.get_lot_patterns()
         
+        # Référence au service de session pour accéder aux DataFrames sauvegardés
+        from services.session_service import SessionService
+        self.session_service = SessionService()
+        
         # Patterns pour les différents types de lots
         self.LOT_PATTERNS = {
             'type1': r'^([A-Z0-9]{3,4})(\d{6})(\d+)$',  # CPKU070725xxxx, CB2TV020425xxxx, etc.
@@ -410,30 +414,63 @@ class FileProcessorService:
             if aggregated_df.empty:
                 raise ValueError(f"Aucune donnée agrégée pour la session {session_id}")
             
-            # Récupérer les métadonnées
+            # Récupérer les métadonnées pour le nom de fichier
             session_num = aggregated_df['Numero_Session'].iloc[0]
-            # Gérer les inventaires multiples
-            inventory_nums = aggregated_df['NUMERO_INVENTAIRE'].unique()
-            inventory_num = inventory_nums[0] if len(inventory_nums) == 1 else f"MULTI_{len(inventory_nums)}"
             site_code = aggregated_df['Site'].iloc[0]
             
-            template_data = {
-                'Numéro Session': [session_num] * len(aggregated_df),
-                'Numéro Inventaire': aggregated_df['NUMERO_INVENTAIRE'].tolist(),
-                'Code Article': aggregated_df['CODE_ARTICLE'],
-                'Statut Article': aggregated_df['STATUT'],
-                'Quantité Théorique': 0,
-                'Quantité Réelle': 0,
-                'Unites': aggregated_df['UNITE'],
-                'Depots': aggregated_df['ZONE_PK'],
-                'Emplacements': aggregated_df['EMPLACEMENT'],
-                'Type Lot': aggregated_df['Type_Lot_Prioritaire']
-            }
+            # Gérer les inventaires multiples pour le nom de fichier
+            inventory_nums = aggregated_df['NUMERO_INVENTAIRE'].unique()
+            if len(inventory_nums) == 1:
+                inventory_num = inventory_nums[0]
+            else:
+                # Pour les inventaires multiples, utiliser le premier + indication
+                inventory_num = f"{inventory_nums[0]}_MULTI"
             
-            template_df = pd.DataFrame(template_data)
+            # Préparer les données du template avec les numéros de lot
+            template_rows = []
             
-            # Construction du nom de fichier
-            filename = f"{site_code}_{inventory_num}_{session_id}.xlsx"
+            for _, row in aggregated_df.iterrows():
+                # Récupérer les lots originaux pour cet article et cet inventaire
+                original_lots = self._get_original_lots_for_article(
+                    row['CODE_ARTICLE'], 
+                    row['NUMERO_INVENTAIRE'],
+                    session_id
+                )
+                
+                if original_lots.empty:
+                    # Si pas de lots trouvés, créer une ligne avec les données agrégées
+                    template_rows.append({
+                        'Numéro Session': row['Numero_Session'],
+                        'Numéro Inventaire': row['NUMERO_INVENTAIRE'],
+                        'Code Article': row['CODE_ARTICLE'],
+                        'Statut Article': row['STATUT'],
+                        'Quantité Théorique': row['Quantite_Theorique_Totale'],
+                        'Quantité Réelle': 0,
+                        'Numéro Lot': 'N/A',
+                        'Unites': row['UNITE'],
+                        'Depots': row['ZONE_PK'],
+                        'Emplacements': row['EMPLACEMENT']
+                    })
+                else:
+                    # Créer une ligne par lot
+                    for _, lot_row in original_lots.iterrows():
+                        template_rows.append({
+                            'Numéro Session': row['Numero_Session'],
+                            'Numéro Inventaire': row['NUMERO_INVENTAIRE'],
+                            'Code Article': row['CODE_ARTICLE'],
+                            'Statut Article': row['STATUT'],
+                            'Quantité Théorique': lot_row['QUANTITE'],
+                            'Quantité Réelle': 0,
+                            'Numéro Lot': lot_row['NUMERO_LOT'],
+                            'Unites': row['UNITE'],
+                            'Depots': row['ZONE_PK'],
+                            'Emplacements': row['EMPLACEMENT']
+                        })
+            
+            template_df = pd.DataFrame(template_rows)
+            
+            # Construction du nom de fichier selon le format demandé
+            filename = f"{site_code}_{session_num}_{inventory_num}_{session_id}.xlsx"
             filepath = os.path.join(output_folder, filename)
             
             # Écriture Excel avec formatage
@@ -451,6 +488,27 @@ class FileProcessorService:
         except Exception as e:
             logger.error(f"Erreur génération template: {str(e)}", exc_info=True)
             raise
+    
+    def _get_original_lots_for_article(self, code_article: str, numero_inventaire: str, session_id: str) -> pd.DataFrame:
+        """Récupère les lots originaux pour un article et un inventaire donnés"""
+        try:
+            # Charger le DataFrame original depuis le stockage de session
+            original_df = self.session_service.load_dataframe(session_id, 'original_df')
+            if original_df is None:
+                logger.warning(f"DataFrame original non trouvé pour session {session_id}")
+                return pd.DataFrame()
+            
+            # Filtrer par article et inventaire
+            lots = original_df[
+                (original_df['CODE_ARTICLE'] == code_article) & 
+                (original_df['NUMERO_INVENTAIRE'] == numero_inventaire)
+            ].copy()
+            
+            return lots
+            
+        except Exception as e:
+            logger.error(f"Erreur récupération lots originaux: {e}")
+            return pd.DataFrame()
     
     def validate_completed_template(self, filepath: str) -> Tuple[bool, str, List[str]]:
         """Valide le fichier template complété"""

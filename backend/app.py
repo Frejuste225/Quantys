@@ -82,7 +82,7 @@ class SageX3Processor:
             completed_df = pd.read_excel(completed_file_path)
             
             # Validation des colonnes requises
-            required_columns = ['Code Article', 'Quantité Théorique', 'Quantité Réelle']
+            required_columns = ['Code Article', 'Quantité Théorique', 'Quantité Réelle', 'Numéro Lot', 'Numéro Inventaire']
             missing_columns = [col for col in required_columns if col not in completed_df.columns]
             if missing_columns:
                 raise ValueError(f"Colonnes manquantes dans le fichier: {', '.join(missing_columns)}")
@@ -119,7 +119,7 @@ class SageX3Processor:
                 adjusted_items_count=adjusted_items_count
             )
             
-            logger.info(f"Fichier complété traité pour session {session_id}: {adjusted_items_count} articles avec écarts")
+            logger.info(f"Fichier complété traité pour session {session_id}: {adjusted_items_count} lots avec écarts")
             return discrepancies_df
             
         except Exception as e:
