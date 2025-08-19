@@ -1,0 +1,39 @@
+sage_x3:
+  columns:
+    TYPE_LIGNE: 0
+    NUMERO_SESSION: 1
+    NUMERO_INVENTAIRE: 2
+    RANG: 3
+    SITE: 4
+    QUANTITE: 5
+    QUANTITE_REELLE_IN_INPUT: 6
+    INDICATEUR_COMPTE: 7
+    CODE_ARTICLE: 8
+    EMPLACEMENT: 9
+    STATUT: 10
+    UNITE: 11
+    VALEUR: 12
+    ZONE_PK: 13
+    NUMERO_LOT: 14
+
+  validation:
+    required_line_types: ['E', 'L', 'S']
+    min_columns: 15
+    max_file_size_mb: 16
+    
+  processing:
+    aggregation_keys:
+      - CODE_ARTICLE
+      - STATUT
+      - EMPLACEMENT
+      - ZONE_PK
+      - UNITE
+    
+    distribution_strategies:
+      - FIFO
+      - LIFO
+      
+  lot_patterns:
+    # Pattern pour extraire les dates des numéros de lot
+    cpku_pattern: 'CPKU\d{3}(\d{2})(\d{2})\d{4}'
+    inventory_date_pattern: '(\d{2})(\d{2})INV'

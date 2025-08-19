@@ -1,0 +1,186 @@
+2025-08-06 12:15:40,216 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-06 12:15:40,295 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-06 12:15:40,376 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-06 12:15:41,729 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.11.116:5000
+2025-08-06 12:15:41,734 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-06 12:15:41,742 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 12:15:47,927 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-06 12:15:47,943 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-06 12:15:47,975 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-06 12:15:48,101 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 12:15:48,157 - werkzeug - INFO -  * Debugger PIN: 136-490-244
+2025-08-06 12:18:06,250 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:18:06] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:18:06,279 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:18:06] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:18:06,608 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:18:06] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:19:49,670 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:19:49] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:19:49,937 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:19:49] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:19:50,060 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:19:50] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:20:39,543 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:39] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:20:43,694 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:43] "OPTIONS /api/sessions/f3eaa675 HTTP/1.1" 200 -
+2025-08-06 12:20:44,100 - services.session_service - INFO - Session f3eaa675 supprimée
+2025-08-06 12:20:44,104 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:44] "DELETE /api/sessions/f3eaa675 HTTP/1.1" 200 -
+2025-08-06 12:20:48,102 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:48] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:20:48,325 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:48] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:20:48,440 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:48] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:20:52,907 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:20:52] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:21:21,929 - services.session_service - INFO - Session créée: b5b3805d
+2025-08-06 12:21:21,965 - services.session_service - INFO - Session b5b3805d mise à jour
+2025-08-06 12:21:23,560 - services.file_processor - INFO - Fichier Excel lu avec succès. Dimensions: (1565, 15)
+2025-08-06 12:21:23,572 - services.file_processor - INFO - Premières lignes du fichier:
+2025-08-06 12:21:23,586 - services.file_processor - INFO - Ligne 0: ['E', 'BKE012507SES00000001', 'test', '1', 'BKE01', nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+2025-08-06 12:21:23,587 - services.file_processor - INFO - Ligne 1: ['L', 'BKE012507SES00000001', 'BKE012507INV00000001', '1', 'BKE01', nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+2025-08-06 12:21:23,588 - services.file_processor - INFO - Ligne 2: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '1000', 'BKE01', '0', '0', '1', '17CH15A650GAM', nan, 'A', 'UN', '0', 'BKE1', nan]
+2025-08-06 12:21:23,589 - services.file_processor - INFO - Ligne 3: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '2000', 'BKE01', '0', '0', '1', '17CH15GAM', nan, 'A', 'UN', '336', 'BKE1', nan]
+2025-08-06 12:21:23,592 - services.file_processor - INFO - Ligne 4: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '3000', 'BKE01', '0', '0', '1', '17CH202/6GAM', nan, 'A', 'UN', '0', 'BKE1', nan]
+2025-08-06 12:21:24,225 - services.file_processor - INFO - Traitement terminé. 1563 lignes de données S; trouvées.
+2025-08-06 12:21:26,170 - services.session_service - INFO - Session b5b3805d mise à jour
+2025-08-06 12:21:26,173 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:21:26] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 12:21:31,726 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:21:31] "GET /api/download/template/b5b3805d HTTP/1.1" 200 -
+2025-08-06 12:22:16,349 - services.session_service - INFO - Session b5b3805d mise à jour
+2025-08-06 12:22:16,352 - __main__ - INFO - Fichier complété traité pour session b5b3805d: 1403 articles avec écarts
+2025-08-06 12:22:21,833 - __main__ - INFO - Écarts distribués pour session b5b3805d avec stratégie FIFO: 345 ajustements
+2025-08-06 12:22:22,003 - services.session_service - INFO - Session b5b3805d mise à jour
+2025-08-06 12:22:22,041 - __main__ - INFO - Fichier final généré: final\data_corrige_b5b3805d.csv
+2025-08-06 12:22:22,071 - services.session_service - INFO - Session b5b3805d mise à jour
+2025-08-06 12:22:22,082 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:22] "POST /api/process HTTP/1.1" 200 -
+2025-08-06 12:22:27,306 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:27] "GET /api/download/final/b5b3805d HTTP/1.1" 200 -
+2025-08-06 12:22:31,404 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:31] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:22:31,686 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:31] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:22:32,029 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:32] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:22:47,155 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:22:47] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:25:45,747 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:25:45] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:25:45,765 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:25:45] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:25:46,138 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:25:46] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:27:04,516 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:27:04] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:27:08,514 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:27:08] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:27:20,274 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:27:20] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:27:20,520 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:27:20] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:27:20,602 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:27:20] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:35:56,343 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:35:56] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:35:56,398 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:35:56] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:36:00,618 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:36:00] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:50:53,718 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:50:53] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:51:22,335 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:51:22] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:52:02,271 - services.session_service - INFO - Session créée: cfb7a01b
+2025-08-06 12:52:02,339 - services.session_service - INFO - Session cfb7a01b mise à jour
+2025-08-06 12:52:03,921 - services.file_processor - INFO - Fichier Excel lu avec succès. Dimensions: (1565, 15)
+2025-08-06 12:52:03,932 - services.file_processor - INFO - Premières lignes du fichier:
+2025-08-06 12:52:03,943 - services.file_processor - INFO - Ligne 0: ['E', 'BKE012507SES00000001', 'test', '1', 'BKE01', nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+2025-08-06 12:52:03,944 - services.file_processor - INFO - Ligne 1: ['L', 'BKE012507SES00000001', 'BKE012507INV00000001', '1', 'BKE01', nan, nan, nan, nan, nan, nan, nan, nan, nan, nan]
+2025-08-06 12:52:03,946 - services.file_processor - INFO - Ligne 2: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '1000', 'BKE01', '0', '0', '1', '17CH15A650GAM', nan, 'A', 'UN', '0', 'BKE1', nan]
+2025-08-06 12:52:03,950 - services.file_processor - INFO - Ligne 3: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '2000', 'BKE01', '0', '0', '1', '17CH15GAM', nan, 'A', 'UN', '336', 'BKE1', nan]
+2025-08-06 12:52:03,951 - services.file_processor - INFO - Ligne 4: ['S', 'BKE012507SES00000001', 'BKE012507INV00000001', '3000', 'BKE01', '0', '0', '1', '17CH202/6GAM', nan, 'A', 'UN', '0', 'BKE1', nan]
+2025-08-06 12:52:04,555 - services.file_processor - INFO - Traitement terminé. 1563 lignes de données S; trouvées.
+2025-08-06 12:52:05,880 - services.session_service - INFO - Session cfb7a01b mise à jour
+2025-08-06 12:52:05,884 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:52:05] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 12:52:10,744 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:52:10] "GET /api/download/template/cfb7a01b HTTP/1.1" 200 -
+2025-08-06 12:52:19,498 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:52:19] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:57:07,609 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:57:07] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-06 12:57:07,850 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 12:57:07] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 17:35:56,291 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-11 17:35:56,292 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-11 17:35:56,310 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-11 17:35:56,568 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.11.116:5000
+2025-08-11 17:35:56,569 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-11 17:35:56,590 - werkzeug - INFO -  * Restarting with stat
+2025-08-11 17:36:12,081 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-11 17:36:12,086 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-11 17:36:12,129 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-11 17:36:12,284 - werkzeug - WARNING -  * Debugger is active!
+2025-08-11 17:36:12,334 - werkzeug - INFO -  * Debugger PIN: 136-490-244
+2025-08-11 18:49:45,126 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:49:45] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 18:49:48,229 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:49:48] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 18:49:48,830 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:49:48] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 18:51:02,225 - services.session_service - INFO - Session créée: 3fa102b2
+2025-08-11 18:51:02,272 - services.session_service - INFO - Session 3fa102b2 mise à jour
+2025-08-11 18:51:03,801 - services.session_service - INFO - Session 3fa102b2 mise à jour
+2025-08-11 18:51:03,804 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:51:03] "POST /api/upload HTTP/1.1" 200 -
+2025-08-11 18:51:08,212 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:51:08] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 18:51:18,534 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:51:18] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-11 18:51:20,619 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:51:20] "OPTIONS /api/sessions/3fa102b2 HTTP/1.1" 200 -
+2025-08-11 18:51:21,000 - services.session_service - INFO - Session 3fa102b2 supprimée
+2025-08-11 18:51:21,002 - werkzeug - INFO - 127.0.0.1 - - [11/Aug/2025 18:51:21] "DELETE /api/sessions/3fa102b2 HTTP/1.1" 200 -
+2025-08-13 12:26:38,028 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-13 12:26:38,039 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-13 12:26:38,057 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-13 12:26:39,422 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.11.116:5000
+2025-08-13 12:26:39,422 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-13 12:26:39,431 - werkzeug - INFO -  * Restarting with stat
+2025-08-13 12:26:45,486 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-13 12:26:45,488 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-13 12:26:45,498 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-13 12:26:45,555 - werkzeug - WARNING -  * Debugger is active!
+2025-08-13 12:26:45,577 - werkzeug - INFO -  * Debugger PIN: 136-490-244
+2025-08-14 11:48:58,070 - services.session_service - INFO - Session créée: 2bf7f9c4
+2025-08-14 11:48:58,994 - services.session_service - INFO - Session 2bf7f9c4 mise à jour
+2025-08-14 11:49:06,489 - services.session_service - INFO - Session 2bf7f9c4 mise à jour
+2025-08-14 11:49:06,629 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 11:49:06] "POST /api/upload HTTP/1.1" 200 -
+2025-08-14 11:49:13,556 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 11:49:13] "GET /api/download/template/2bf7f9c4 HTTP/1.1" 200 -
+2025-08-14 11:49:19,400 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 11:49:19] "[36mGET /api/download/template/2bf7f9c4 HTTP/1.1[0m" 304 -
+2025-08-14 11:49:19,867 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 11:49:19] "[36mGET /api/download/template/2bf7f9c4 HTTP/1.1[0m" 304 -
+2025-08-14 12:32:20,290 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:32:20] "[31m[1mPOST /api/process HTTP/1.1[0m" 400 -
+2025-08-14 12:36:05,964 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:36:05] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-14 12:36:43,996 - services.session_service - INFO - Session 2bf7f9c4 mise à jour
+2025-08-14 12:36:44,052 - __main__ - INFO - Fichier complété traité pour session 2bf7f9c4: 58 articles avec écarts
+2025-08-14 12:36:44,627 - __main__ - INFO - Écarts distribués pour session 2bf7f9c4 avec stratégie FIFO: 164 ajustements
+2025-08-14 12:36:44,895 - services.session_service - INFO - Session 2bf7f9c4 mise à jour
+2025-08-14 12:36:44,903 - __main__ - INFO - Fichier final généré: final\BKE02 PF CONF(in)_corrige_2bf7f9c4.csv
+2025-08-14 12:36:45,041 - services.session_service - INFO - Session 2bf7f9c4 mise à jour
+2025-08-14 12:36:45,129 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:36:45] "POST /api/process HTTP/1.1" 200 -
+2025-08-14 12:36:53,511 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:36:53] "GET /api/download/final/2bf7f9c4 HTTP/1.1" 200 -
+2025-08-14 12:56:28,926 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:56:28] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-14 12:56:33,000 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:56:33] "OPTIONS /api/sessions/2bf7f9c4 HTTP/1.1" 200 -
+2025-08-14 12:56:34,261 - services.session_service - INFO - Session 2bf7f9c4 supprimée
+2025-08-14 12:56:34,359 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 12:56:34] "DELETE /api/sessions/2bf7f9c4 HTTP/1.1" 200 -
+2025-08-14 13:29:55,845 - services.session_service - INFO - Session créée: e56db52c
+2025-08-14 13:29:56,326 - services.session_service - INFO - Session e56db52c mise à jour
+2025-08-14 13:29:59,663 - services.file_processor - INFO - Fichier Excel lu avec succès. Dimensions: (1541, 2)
+2025-08-14 13:29:59,669 - services.file_processor - INFO - Premières lignes du fichier:
+2025-08-14 13:29:59,695 - services.file_processor - INFO - Ligne 0: ['E;BKE022508SES00000003;test depot conf;1;BKE02;;;;;;;;;;', nan]
+2025-08-14 13:29:59,701 - services.file_processor - INFO - Ligne 1: ['L;BKE022508SES00000003;BKE022508INV00000006;1;BKE02;;;;;;;;;;', nan]
+2025-08-14 13:29:59,709 - services.file_processor - INFO - Ligne 2: ['S;BKE022508SES00000003;BKE022508INV00000006;1000;BKE02;0;0;1;17CH15A650GAM;;A;UN;0;BKE2;', nan]
+2025-08-14 13:29:59,717 - services.file_processor - INFO - Ligne 3: ['S;BKE022508SES00000003;BKE022508INV00000006;2000;BKE02;0;0;1;17CH15GAM;;A;UN;0;BKE2;', nan]
+2025-08-14 13:29:59,719 - services.file_processor - INFO - Ligne 4: ['S;BKE022508SES00000003;BKE022508INV00000006;3000;BKE02;0;0;1;17CH202/6GAM;;A;UN;0;BKE2;', nan]
+2025-08-14 13:30:00,739 - services.session_service - INFO - Session e56db52c supprimée
+2025-08-14 13:30:00,799 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:30:00] "[31m[1mPOST /api/upload HTTP/1.1[0m" 400 -
+2025-08-14 13:37:18,743 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:37:18] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-14 13:37:42,072 - services.session_service - INFO - Session créée: c78fbcaa
+2025-08-14 13:37:42,263 - services.session_service - INFO - Session c78fbcaa mise à jour
+2025-08-14 13:37:46,851 - services.session_service - INFO - Session c78fbcaa mise à jour
+2025-08-14 13:37:46,861 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:37:46] "POST /api/upload HTTP/1.1" 200 -
+2025-08-14 13:38:09,576 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:38:09] "GET /api/download/template/c78fbcaa HTTP/1.1" 200 -
+2025-08-14 13:47:57,367 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:47:57] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-14 13:48:21,149 - services.session_service - INFO - Session c78fbcaa mise à jour
+2025-08-14 13:48:21,155 - __main__ - INFO - Fichier complété traité pour session c78fbcaa: 58 articles avec écarts
+2025-08-14 13:48:21,559 - __main__ - INFO - Écarts distribués pour session c78fbcaa avec stratégie FIFO: 164 ajustements
+2025-08-14 13:48:21,677 - services.session_service - INFO - Session c78fbcaa mise à jour
+2025-08-14 13:48:21,677 - __main__ - INFO - Fichier final généré: final\BKE02 PF CONF_corrige_c78fbcaa.csv
+2025-08-14 13:48:21,704 - services.session_service - INFO - Session c78fbcaa mise à jour
+2025-08-14 13:48:21,712 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:48:21] "POST /api/process HTTP/1.1" 200 -
+2025-08-14 13:48:23,975 - werkzeug - INFO - 127.0.0.1 - - [14/Aug/2025 13:48:23] "GET /api/download/final/c78fbcaa HTTP/1.1" 200 -
+2025-08-19 11:02:53,427 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-19 11:02:53,431 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-19 11:02:53,454 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-19 11:02:54,737 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.11.116:5000
+2025-08-19 11:02:54,738 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-19 11:02:54,751 - werkzeug - INFO -  * Restarting with stat
+2025-08-19 11:03:07,802 - services.file_processor - INFO - FileProcessorService initialisé avec 15 colonnes attendues
+2025-08-19 11:03:07,803 - services.file_processor - INFO - Colonnes: ['TYPE_LIGNE', 'NUMERO_SESSION', 'NUMERO_INVENTAIRE', 'RANG', 'SITE', 'QUANTITE', 'QUANTITE_REELLE_IN_INPUT', 'INDICATEUR_COMPTE', 'CODE_ARTICLE', 'EMPLACEMENT', 'STATUT', 'UNITE', 'VALEUR', 'ZONE_PK', 'NUMERO_LOT']
+2025-08-19 11:03:07,825 - __main__ - INFO - Démarrage de l'application Moulinette Sage X3
+2025-08-19 11:03:07,896 - werkzeug - WARNING -  * Debugger is active!
+2025-08-19 11:03:07,934 - werkzeug - INFO -  * Debugger PIN: 136-490-244
+2025-08-19 11:03:38,663 - werkzeug - INFO - 127.0.0.1 - - [19/Aug/2025 11:03:38] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-19 11:03:42,856 - werkzeug - INFO - 127.0.0.1 - - [19/Aug/2025 11:03:42] "GET /api/sessions HTTP/1.1" 200 -
+2025-08-19 11:03:43,269 - werkzeug - INFO - 127.0.0.1 - - [19/Aug/2025 11:03:43] "GET /api/sessions HTTP/1.1" 200 -
