@@ -384,7 +384,12 @@ class FileProcessorService:
             if 'NUMERO_INVENTAIRE' not in aggregation_keys:
                 aggregation_keys.append('NUMERO_INVENTAIRE')
             
-            aggregated = df.groupby(aggregation_keys).agg(
+            # Filtrer les colonnes qui existent réellement dans le DataFrame
+            existing_keys = [key for key in aggregation_keys if key in df.columns]
+            if not existing_keys:
+                raise ValueError("Aucune clé d'agrégation valide trouvée dans les données")
+            
+            aggregated = df.groupby(existing_keys).agg(
                 Quantite_Theorique_Totale=('QUANTITE', 'sum'),
                 Numero_Session=('NUMERO_SESSION', 'first'),
                 Site=('SITE', 'first'),
@@ -439,6 +444,7 @@ class FileProcessorService:
                 
                 if original_lots.empty:
                     # Si pas de lots trouvés, créer une ligne avec les données agrégées
+                    # Vérifier si l'article a vraiment un numéro de lot ou non
                     template_rows.append({
                         'Numéro Session': row['Numero_Session'],
                         'Numéro Inventaire': row['NUMERO_INVENTAIRE'],
@@ -446,7 +452,7 @@ class FileProcessorService:
                         'Statut Article': row['STATUT'],
                         'Quantité Théorique': row['Quantite_Theorique_Totale'],
                         'Quantité Réelle': 0,
-                        'Numéro Lot': 'N/A',
+                        'Numéro Lot': '',  # Laisser vide au lieu de N/A
                         'Unites': row['UNITE'],
                         'Depots': row['ZONE_PK'],
                         'Emplacements': row['EMPLACEMENT']
@@ -454,6 +460,13 @@ class FileProcessorService:
                 else:
                     # Créer une ligne par lot
                     for _, lot_row in original_lots.iterrows():
+                        # Vérifier si le numéro de lot est valide
+                        numero_lot = lot_row['NUMERO_LOT']
+                        if pd.isna(numero_lot) or str(numero_lot).strip() == '' or str(numero_lot).strip().upper() == 'NAN':
+                            numero_lot = ''  # Laisser vide si pas de lot
+                        else:
+                            numero_lot = str(numero_lot).strip()
+                        
                         template_rows.append({
                             'Numéro Session': row['Numero_Session'],
                             'Numéro Inventaire': row['NUMERO_INVENTAIRE'],
@@ -461,7 +474,7 @@ class FileProcessorService:
                             'Statut Article': row['STATUT'],
                             'Quantité Théorique': lot_row['QUANTITE'],
                             'Quantité Réelle': 0,
-                            'Numéro Lot': lot_row['NUMERO_LOT'],
+                            'Numéro Lot': numero_lot,
                             'Unites': row['UNITE'],
                             'Depots': row['ZONE_PK'],
                             'Emplacements': row['EMPLACEMENT']
@@ -492,11 +505,19 @@ class FileProcessorService:
     def _get_original_lots_for_article(self, code_article: str, numero_inventaire: str, session_id: str) -> pd.DataFrame:
         """Récupère les lots originaux pour un article et un inventaire donnés"""
         try:
-            # Charger le DataFrame original depuis le stockage de session
+            # Essayer de charger depuis le stockage persistant
             original_df = self.session_service.load_dataframe(session_id, 'original_df')
+            
+            # Si pas trouvé, essayer depuis la compatibilité temporaire
             if original_df is None:
-                logger.warning(f"DataFrame original non trouvé pour session {session_id}")
-                return pd.DataFrame()
+                # Import ici pour éviter la référence circulaire
+                from app import processor
+                if hasattr(processor, 'sessions') and session_id in processor.sessions:
+                    original_df = processor.sessions[session_id].get('original_df')
+                
+                if original_df is None:
+                    logger.warning(f"DataFrame original non trouvé pour session {session_id}")
+                    return pd.DataFrame()
             
             # Filtrer par article et inventaire
             lots = original_df[

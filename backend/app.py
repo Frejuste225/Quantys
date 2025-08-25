@@ -87,6 +87,10 @@ class SageX3Processor:
             if missing_columns:
                 raise ValueError(f"Colonnes manquantes dans le fichier: {', '.join(missing_columns)}")
             
+            # Nettoyer les numéros de lot dans le fichier complété
+            completed_df['Numéro Lot'] = completed_df['Numéro Lot'].fillna('').astype(str).str.strip()
+            completed_df.loc[completed_df['Numéro Lot'].str.upper().isin(['NAN', 'NULL', 'NONE']), 'Numéro Lot'] = ''
+            
             # Conversion des types
             completed_df['Quantité Théorique'] = pd.to_numeric(completed_df['Quantité Théorique'], errors='coerce')
             completed_df['Quantité Réelle'] = pd.to_numeric(completed_df['Quantité Réelle'], errors='coerce')
@@ -170,6 +174,7 @@ class SageX3Processor:
                         break
                     
                     lot_quantity = float(lot_row['QUANTITE'])
+                    lot_number = lot_row['NUMERO_LOT'] if lot_row['NUMERO_LOT'] else ''
                     
                     if remaining_discrepancy > 0:
                         # Écart positif : ajouter du stock
@@ -182,7 +187,7 @@ class SageX3Processor:
                         adjustments.append({
                             'CODE_ARTICLE': code_article,
                             'NUMERO_INVENTAIRE': numero_inventaire,
-                            'NUMERO_LOT': lot_row['NUMERO_LOT'],
+                            'NUMERO_LOT': lot_number,
                             'TYPE_LOT': lot_row.get('Type_Lot', 'unknown'),
                             'QUANTITE_ORIGINALE': lot_quantity,
                             'AJUSTEMENT': adjustment,
@@ -210,10 +215,10 @@ class SageX3Processor:
     def _sort_lots_by_priority_and_strategy(self, lots_df: pd.DataFrame, strategy: str) -> pd.DataFrame:
         """Trie les lots selon la priorité des types et la stratégie FIFO/LIFO"""
         # Définir l'ordre de priorité des types de lots
-        type_priority = {'type1': 1, 'type2': 2, 'type3': 3, 'legacy': 4, 'unknown': 5}
+        type_priority = {'type1': 1, 'type2': 2, 'type3': 3, 'legacy': 4, 'no_lot': 5, 'unknown': 6}
         
         # Ajouter une colonne de priorité
-        lots_df['priority'] = lots_df.get('Type_Lot', 'unknown').map(type_priority).fillna(5)
+        lots_df['priority'] = lots_df.get('Type_Lot', 'unknown').map(type_priority).fillna(6)
         
         # Trier d'abord par priorité de type, puis par date selon la stratégie
         if strategy == 'FIFO':
@@ -279,6 +284,11 @@ class SageX3Processor:
                     if len(parts) >= 6:  # S'assurer qu'on a assez de colonnes
                         # Remplacer la quantité (colonne 5, index 5)
                         parts[5] = str(int(row['QUANTITE_CORRIGEE']))
+                        
+                        # S'assurer que le numéro de lot est correct (colonne 14, index 14)
+                        if len(parts) > 14 and row['NUMERO_LOT']:
+                            parts[14] = str(row['NUMERO_LOT'])
+                        
                         corrected_line = ';'.join(parts)
                         lines.append(corrected_line)
             
@@ -377,6 +387,10 @@ def upload_file():
             'aggregated_df': aggregated_df,
             'header_lines': headers
         }
+        
+        # Sauvegarder aussi dans le stockage persistant
+        session_service.save_dataframe(session_id, 'original_df', original_df)
+        session_service.save_dataframe(session_id, 'aggregated_df', aggregated_df)
 
         return jsonify({
             'success': True,
