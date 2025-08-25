@@ -291,9 +291,8 @@ class FileProcessorService:
         df['Date_Lot'] = lot_info.apply(lambda x: x[0] if x else None)
         df['Type_Lot'] = lot_info.apply(lambda x: x[1] if x else 'unknown')
         
-        # Détection spéciale des lots LOTECART (quantité théorique = 0)
-        lotecart_mask = (df['QUANTITE'] == 0) & (df['NUMERO_LOT'].str.strip().str.upper() == 'LOTECART')
-        df.loc[lotecart_mask, 'Type_Lot'] = 'lotecart'
+        # Note: La détection LOTECART se fera lors du traitement du fichier complété
+        # car elle nécessite la comparaison quantité théorique = 0 ET quantité réelle > 0
         
         # Ajout des lignes originales
         df['original_s_line_raw'] = original_lines

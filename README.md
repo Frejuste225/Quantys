@@ -64,7 +64,7 @@ L'application reconnaît et traite les numéros de lot avec ordre de priorité :
    - Extraction de la date pour tri chronologique
 
 3. **LOTECART (Cas Spécial)** : Détecté quand quantité théorique = 0
-   - Utilisé pour les écarts de comptage
+   - Détecté automatiquement quand quantité théorique = 0 ET quantité réelle > 0
    - Pas de tri par date, premier lot disponible
 
 ### Gestion des Inventaires Multiples

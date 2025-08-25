@@ -98,6 +98,10 @@ class SageX3Processor:
             # Calcul des écarts
             completed_df['Écart'] = completed_df['Quantité Réelle'] - completed_df['Quantité Théorique']
             
+            # Détection des lots LOTECART : quantité théorique = 0 ET quantité réelle > 0
+            lotecart_mask = (completed_df['Quantité Théorique'] == 0) & (completed_df['Quantité Réelle'] > 0)
+            completed_df.loc[lotecart_mask, 'Type_Lot'] = 'lotecart'
+            
             # Filtrer les articles avec écarts
             discrepancies_df = completed_df[completed_df['Écart'] != 0].copy()
             
@@ -163,8 +167,19 @@ class SageX3Processor:
                 if article_lots.empty:
                     continue
                 
+                # Vérifier si c'est un cas LOTECART dans les écarts
+                is_lotecart = False
+                if discrepancy_row.get('Type_Lot') == 'lotecart':
+                    is_lotecart = True
+                    logger.info(f"Lot LOTECART détecté pour {code_article} - Quantité théorique: 0, Quantité réelle: {discrepancy_row.get('Quantité Réelle', 0)}")
+                
                 # Trier selon la priorité des types de lots et la stratégie
-                article_lots = self._sort_lots_by_priority_and_strategy(article_lots, strategy)
+                if is_lotecart:
+                    # Pour LOTECART, pas de tri par date, prendre le premier lot disponible
+                    article_lots = article_lots.head(1)
+                    logger.info(f"LOTECART: Utilisation du premier lot disponible pour {code_article}")
+                else:
+                    article_lots = self._sort_lots_by_priority_and_strategy(article_lots, strategy)
                 
                 # Distribuer l'écart
                 remaining_discrepancy = ecart
