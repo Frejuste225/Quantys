@@ -189,7 +189,7 @@ const SessionManager = ({ onSessionSelect, onClose }) => {
                                         <div>
                                             <p className="text-sm text-gray-600">Fichier original</p>
                                             <p className="font-medium truncate" title={session.original_file}>
-                                                {session.original_filename || session.original_file || 'N/A'}
+                                                {session.original_filename || 'N/A'}
                                             </p>
                                         </div>
                                         <div>
@@ -246,10 +246,14 @@ const SessionManager = ({ onSessionSelect, onClose }) => {
                                                 </button>
                                             </>
                                         )}
-                                        {(session.status !== 'template_generated' && session.status !== 'completed') && (
+                                        {!['template_generated', 'completed'].includes(session.status) && (
                                             <button
                                                 onClick={() => handleSessionSelect(session)}
-                                                className="flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm"
+                                                className={`flex items-center px-3 py-2 rounded-lg transition-colors duration-200 text-sm ${
+                                                    session.status === 'error' || session.status === 'processing' 
+                                                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
                                                 disabled={session.status === 'error' || session.status === 'processing'}
                                             >
                                                 {session.status === 'error' ? 'Erreur' : 
