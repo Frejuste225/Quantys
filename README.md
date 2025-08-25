@@ -53,7 +53,7 @@ python app.py
 
 ### Types de Numéros de Lot Supportés
 
-L'application reconnaît et traite 3 types de numéros de lot avec ordre de priorité :
+L'application reconnaît et traite les numéros de lot avec ordre de priorité :
 
 1. **Type 1 (Priorité Haute)** : `CPKU070725xxxx`, `CB2TV020425xxxx`
    - Format : `[SITE][DDMMYY][NUMERO]`
@@ -63,8 +63,9 @@ L'application reconnaît et traite 3 types de numéros de lot avec ordre de prio
    - Format : `LOT[DDMMYY]`
    - Extraction de la date pour tri chronologique
 
-3. **Type 3 (Priorité Basse)** : `LOTECART`
-   - Pas de date, traitement au premier lot disponible
+3. **LOTECART (Cas Spécial)** : Détecté quand quantité théorique = 0
+   - Utilisé pour les écarts de comptage
+   - Pas de tri par date, premier lot disponible
 
 ### Gestion des Inventaires Multiples
 

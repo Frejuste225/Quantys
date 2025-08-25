@@ -214,11 +214,11 @@ class SageX3Processor:
     
     def _sort_lots_by_priority_and_strategy(self, lots_df: pd.DataFrame, strategy: str) -> pd.DataFrame:
         """Trie les lots selon la priorité des types et la stratégie FIFO/LIFO"""
-        # Définir l'ordre de priorité des types de lots
-        type_priority = {'type1': 1, 'type2': 2, 'type3': 3, 'legacy': 4, 'no_lot': 5, 'unknown': 6}
+        # Définir l'ordre de priorité des types de lots (simplifié)
+        type_priority = {'type1': 1, 'type2': 2, 'lotecart': 3, 'unknown': 4}
         
         # Ajouter une colonne de priorité
-        lots_df['priority'] = lots_df.get('Type_Lot', 'unknown').map(type_priority).fillna(6)
+        lots_df['priority'] = lots_df.get('Type_Lot', 'unknown').map(type_priority).fillna(4)
         
         # Trier d'abord par priorité de type, puis par date selon la stratégie
         if strategy == 'FIFO':
@@ -235,13 +235,13 @@ class SageX3Processor:
                 na_position='last'
             )
         
-        # Pour les lots de type3 (LOTECART), on ignore la date et on prend le premier disponible
-        type3_lots = sorted_lots[sorted_lots.get('Type_Lot', '') == 'type3']
-        other_lots = sorted_lots[sorted_lots.get('Type_Lot', '') != 'type3']
+        # Pour les lots LOTECART, on ignore la date et on prend le premier disponible
+        lotecart_lots = sorted_lots[sorted_lots.get('Type_Lot', '') == 'lotecart']
+        other_lots = sorted_lots[sorted_lots.get('Type_Lot', '') != 'lotecart']
         
-        # Recombiner : autres lots triés + lots type3 en premier disponible
-        if not type3_lots.empty:
-            result = pd.concat([other_lots, type3_lots], ignore_index=True)
+        # Recombiner : autres lots triés + lots LOTECART en premier disponible
+        if not lotecart_lots.empty:
+            result = pd.concat([other_lots, lotecart_lots], ignore_index=True)
         else:
             result = other_lots
         

@@ -28,8 +28,7 @@ class FileProcessorService:
         # Patterns pour les différents types de lots
         self.LOT_PATTERNS = {
             'type1': r'^([A-Z0-9]{3,4})(\d{6})(\d+)$',  # CPKU070725xxxx, CB2TV020425xxxx, etc.
-            'type2': r'^LOT(\d{6})$',                    # LOT311224
-            'type3': r'^LOTECART$'                       # LOTECART
+            'type2': r'^LOT(\d{6})$'                     # LOT311224
         }
         logger.info(f"FileProcessorService initialisé avec {len(self.SAGE_COLUMN_NAMES_ORDERED)} colonnes attendues")
         logger.info(f"Colonnes: {self.SAGE_COLUMN_NAMES_ORDERED}")
@@ -287,10 +286,14 @@ class FileProcessorService:
         # Conversion des types
         df['QUANTITE'] = pd.to_numeric(df['QUANTITE'], errors='coerce')
         
-        # Extraction des dates de lot
+        # Extraction des dates de lot et détection LOTECART
         lot_info = df['NUMERO_LOT'].apply(self._extract_date_from_lot)
         df['Date_Lot'] = lot_info.apply(lambda x: x[0] if x else None)
         df['Type_Lot'] = lot_info.apply(lambda x: x[1] if x else 'unknown')
+        
+        # Détection spéciale des lots LOTECART (quantité théorique = 0)
+        lotecart_mask = (df['QUANTITE'] == 0) & (df['NUMERO_LOT'].str.strip().str.upper() == 'LOTECART')
+        df.loc[lotecart_mask, 'Type_Lot'] = 'lotecart'
         
         # Ajout des lignes originales
         df['original_s_line_raw'] = original_lines
@@ -299,7 +302,7 @@ class FileProcessorService:
     
     def _extract_date_from_lot(self, lot_number: str) -> Tuple[Union[datetime, None], str]:
         """
-        Extrait une date d'un numéro de lot Sage X3 selon les différents types
+        Extrait une date d'un numéro de lot Sage X3 selon les 2 types principaux
         Retourne (date, type_lot)
         """
         if pd.isna(lot_number):
@@ -333,21 +336,6 @@ class FileProcessorService:
             except ValueError:
                 logger.warning(f"Date invalide dans le lot type 2: {lot_number}")
                 return None, 'type2'
-        
-        # Type 3: LOTECART (pas de date)
-        if re.match(self.LOT_PATTERNS['type3'], lot_str):
-            return None, 'type3'
-        
-        # Ancien pattern pour compatibilité (à supprimer progressivement)
-        pattern = self.lot_patterns.get('cpku_pattern', r'CPKU\d{3}(\d{2})(\d{2})\d{4}')
-        match = re.search(pattern, lot_str)
-        if match:
-            try:
-                month = int(match.group(1))
-                year = int(match.group(2)) + 2000
-                return datetime(year, month, 1), 'legacy'
-            except ValueError:
-                logger.warning(f"Date invalide dans le lot: {lot_number}")
         
         return None, 'unknown'
     
@@ -405,7 +393,7 @@ class FileProcessorService:
     
     def _get_priority_lot_type(self, lot_types: List[str]) -> str:
         """Détermine le type de lot prioritaire selon la hiérarchie"""
-        priority_order = ['type1', 'type2', 'type3', 'legacy', 'unknown']
+        priority_order = ['type1', 'type2', 'lotecart', 'unknown']
         
         for priority_type in priority_order:
             if priority_type in lot_types:
