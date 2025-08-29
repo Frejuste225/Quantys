@@ -1,90 +1,59 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  sage_x3_app:
-    build: .
+  # Backend Flask
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: sage_x3_backend
     ports:
       - "5000:5000"
     volumes:
-      - ./uploads:/app/uploads
-      - ./processed:/app/processed
-      - ./final:/app/final
-      - ./archive:/app/archive
-      - ./logs:/app/logs
-      - ./database:/app/database
+      # Volumes persistants pour les données
+      - sage_uploads:/app/uploads
+      - sage_processed:/app/processed
+      - sage_final:/app/final
+      - sage_archive:/app/archive
+      - sage_logs:/app/logs
+      - sage_database:/app/database
+      - sage_data:/app/data
     environment:
       - FLASK_ENV=production
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DATABASE_URL=sqlite:///database/sage_x3.db
       - SESSION_EXPIRY_HOURS=24
       - CLEANUP_INTERVAL_MINUTES=60
       - MAX_FILE_SIZE=16777216
-    depends_on:
-      redis:
-        condition: service_healthy
+      - UPLOAD_FOLDER=uploads
+      - PROCESSED_FOLDER=processed
+      - FINAL_FOLDER=final
+      - ARCHIVE_FOLDER=archive
+      - LOG_FOLDER=logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    restart: unless-stopped
 
-  celery_worker:
-    build: .
-    command: celery -A app.celery worker --loglevel=info --concurrency=4
-    volumes:
-      - ./uploads:/app/uploads
-      - ./processed:/app/processed
-      - ./final:/app/final
-      - ./archive:/app/archive
-      - ./logs:/app/logs
-      - ./database:/app/database
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///database/sage_x3.db
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  celery_beat:
-    build: .
-    command: celery -A app.celery beat --loglevel=info
-    volumes:
-      - ./logs:/app/logs
-      - ./database:/app/database
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///database/sage_x3.db
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  flower:
-    build: .
-    command: celery -A app.celery flower --port=5555
+  # Frontend React
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: sage_x3_frontend
     ports:
-      - "5555:5555"
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - "80:80"
     depends_on:
-      redis:
-        condition: service_healthy
+      - backend
+    restart: unless-stopped
 
 volumes:
-  redis_data:
+  sage_uploads:
+  sage_processed:
+  sage_final:
+  sage_archive:
+  sage_logs:
+  sage_database:
+  sage_data:
