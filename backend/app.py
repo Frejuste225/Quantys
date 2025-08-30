@@ -204,6 +204,8 @@ class SageX3Processor:
                     logger.info(
                         f"Lot LOTECART détecté pour {code_article} - Quantité théorique: 0, Quantité réelle: {discrepancy_row.get('Quantité Réelle', 0)}"
                     )
+                    
+                    quantite_reelle = discrepancy_row.get('Quantité Réelle', 0)
 
                     # Trouver un lot de référence pour récupérer les métadonnées
                     if numero_inventaire:
@@ -227,8 +229,8 @@ class SageX3Processor:
                                 "NUMERO_LOT": "LOTECART",
                                 "TYPE_LOT": "lotecart",
                                 "QUANTITE_ORIGINALE": 0,
-                                "AJUSTEMENT": ecart,
-                                "QUANTITE_CORRIGEE": ecart,
+                                "AJUSTEMENT": quantite_reelle,
+                                "QUANTITE_CORRIGEE": quantite_reelle,
                                 "Date_Lot": None,
                                 "original_s_line_raw": pd.NA,  # Nouvelle ligne à créer
                                 "reference_line": ref_lot[
@@ -237,7 +239,7 @@ class SageX3Processor:
                             }
                         )
                         logger.info(
-                            f"LOTECART: Nouvelle ligne créée pour {code_article} avec quantité {ecart}, référence: {ref_lot['original_s_line_raw'][:50]}..."
+                            f"LOTECART: Nouvelle ligne créée pour {code_article} avec quantité {quantite_reelle}"
                         )
                     else:
                         logger.warning(f"LOTECART: Aucune ligne de référence trouvée pour {code_article} dans l'inventaire {numero_inventaire}")
@@ -360,12 +362,14 @@ class SageX3Processor:
                 "distributed_df" not in session_data
                 or "header_lines" not in session_data
                 or "original_df" not in session_data
+                or "completed_df" not in session_data
             ):
                 raise ValueError("Données manquantes pour générer le fichier final")
 
             distributed_df = session_data["distributed_df"]
             header_lines = session_data["header_lines"]
             original_df = session_data["original_df"]
+            completed_df = session_data["completed_df"]
 
             # Récupérer les données de session depuis la base
             db_session_data = self.session_service.get_session_data(session_id)
@@ -378,8 +382,19 @@ class SageX3Processor:
             final_filename = f"{base_name}_corrige_{session_id}.csv"
             final_file_path = os.path.join(config.FINAL_FOLDER, final_filename)
 
-            # Créer un dictionnaire des ajustements pour un accès rapide
+            # Créer un dictionnaire des quantités réelles depuis le template complété
             # Clé: (CODE_ARTICLE, NUMERO_INVENTAIRE, NUMERO_LOT)
+            real_quantities_dict = {}
+            for _, row in completed_df.iterrows():
+                code_article = row["Code Article"]
+                numero_inventaire = row["Numéro Inventaire"]
+                numero_lot = str(row["Numéro Lot"]).strip() if pd.notna(row["Numéro Lot"]) else ""
+                quantite_reelle = row["Quantité Réelle"]
+                
+                key = (code_article, numero_inventaire, numero_lot)
+                real_quantities_dict[key] = quantite_reelle
+            
+            # Créer un dictionnaire des ajustements pour un accès rapide
             adjustments_dict = {}
             for _, row in distributed_df.iterrows():
                 code_article = row["CODE_ARTICLE"]
@@ -395,6 +410,7 @@ class SageX3Processor:
                     "QUANTITE_CORRIGEE": row["QUANTITE_CORRIGEE"],
                     "TYPE_LOT": row["TYPE_LOT"],
                     "AJUSTEMENT": row["AJUSTEMENT"],
+                    "IS_NEW_LOTECART": pd.isna(row.get("original_s_line_raw")) or row.get("original_s_line_raw") is None
                 }
 
             # Générer le contenu du fichier
@@ -423,12 +439,22 @@ class SageX3Processor:
                         )
 
                         key = (code_article, numero_inventaire, numero_lot)
+                        
+                        # Récupérer la quantité réelle depuis le template complété
+                        quantite_reelle = real_quantities_dict.get(key, 0)
 
                         # Vérifier s'il y a un ajustement pour cette ligne
                         if key in adjustments_dict:
                             # Appliquer l'ajustement
                             adjustment = adjustments_dict[key]
-                            parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))
+                            
+                            # Pour les LOTECART, utiliser la quantité réelle comme quantité théorique
+                            if adjustment["TYPE_LOT"] == "lotecart":
+                                parts[5] = str(int(quantite_reelle))  # Quantité théorique = quantité réelle
+                                parts[6] = str(int(quantite_reelle))  # Quantité réelle
+                            else:
+                                parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))  # Quantité théorique ajustée
+                                parts[6] = str(int(quantite_reelle))  # Quantité réelle
 
                             # S'assurer que le numéro de lot est correct (colonne 14, index 14)
                             if len(parts) > 14:
@@ -442,30 +468,33 @@ class SageX3Processor:
 
                             lines_adjusted += 1
                             logger.debug(
-                                f"Ligne ajustée: {code_article} - {numero_lot} - Nouvelle quantité: {adjustment['QUANTITE_CORRIGEE']}"
+                                f"Ligne ajustée: {code_article} - {numero_lot} - Qté théo: {parts[5]}, Qté réelle: {parts[6]}"
                             )
+                        else:
+                            # Même pour les lignes non ajustées, mettre à jour la quantité réelle
+                            if quantite_reelle is not None:
+                                parts[6] = str(int(quantite_reelle))
 
                         # Vérifier si la quantité finale est nulle et mettre INDICATEUR_COMPTE à 2
                         quantite_finale = float(parts[5]) if parts[5] else 0
                         quantite_theorique_originale = float(
                             original_row.get("QUANTITE", 0)
                         )
+                        quantite_reelle_finale = float(parts[6]) if parts[6] else 0
 
-                        # Mettre INDICATEUR_COMPTE à 2 si :
-                        # 1. La quantité finale est 0 (après ajustement)
-                        # 2. OU si la quantité théorique originale était 0 (cas LOTECART)
+                        # Mettre INDICATEUR_COMPTE à 2 dans les cas suivants :
+                        # 1. La quantité théorique finale est 0 ET quantité réelle > 0 (LOTECART)
+                        # 2. La quantité théorique originale était 0 (cas LOTECART détecté)
+                        # 3. Les quantités théorique et réelle sont égales (pas d'écart)
                         if (
-                            quantite_finale == 0 or quantite_theorique_originale == 0
+                            (quantite_theorique_originale == 0 and quantite_reelle_finale > 0) or
+                            (quantite_finale == quantite_reelle_finale and quantite_reelle_finale > 0) or
+                            numero_lot == "LOTECART"
                         ) and len(parts) > 7:
                             parts[7] = "2"  # INDICATEUR_COMPTE à l'index 7
                             logger.debug(
-                                f"INDICATEUR_COMPTE mis à 2 pour {code_article} - {numero_lot} (quantité finale: {quantite_finale}, quantité théorique originale: {quantite_theorique_originale})"
+                                f"INDICATEUR_COMPTE mis à 2 pour {code_article} - {numero_lot} (qté théo finale: {quantite_finale}, qté réelle: {quantite_reelle_finale})"
                             )
-                        
-                        # Vérification supplémentaire pour les lignes LOTECART existantes
-                        if numero_lot == "LOTECART" and len(parts) > 7:
-                            parts[7] = "2"  # Forcer INDICATEUR_COMPTE à 2 pour toutes les lignes LOTECART
-                            logger.debug(f"INDICATEUR_COMPTE forcé à 2 pour ligne LOTECART existante: {code_article}")
 
                         # Ajouter la ligne (ajustée ou originale)
                         corrected_line = ";".join(parts)
@@ -491,10 +520,6 @@ class SageX3Processor:
             # Ajouter les nouvelles lignes LOTECART qui n'existaient pas dans l'original
             lotecart_lines_created = 0
             for _, row in distributed_df.iterrows():
-                logger.debug(
-                    f"Vérification ligne: {row['CODE_ARTICLE']} - Type: {row['TYPE_LOT']} - Original: {row.get('original_s_line_raw')} - Reference: {row.get('reference_line') is not None}"
-                )
-
                 if (
                     row["TYPE_LOT"] == "lotecart"
                     and (
@@ -510,36 +535,24 @@ class SageX3Processor:
                     if len(parts) >= 15:  # S'assurer qu'on a assez de colonnes
                         # Générer un nouveau numéro de ligne
                         max_line_number += 1000  # Incrément pour éviter les conflits
+                        
+                        # Récupérer la quantité réelle depuis le template complété
+                        key = (row["CODE_ARTICLE"], row["NUMERO_INVENTAIRE"], "LOTECART")
+                        quantite_reelle = real_quantities_dict.get(key, row["QUANTITE_CORRIGEE"])
 
                         # Modifier les champs nécessaires pour LOTECART
-                        logger.debug(f"Ligne de référence avant modification: {reference_line}")
-                        logger.debug(f"Nombre de colonnes dans la référence: {len(parts)}")
-                        
                         parts[3] = str(max_line_number)  # Nouveau numéro de ligne
-                        parts[5] = str(int(row["QUANTITE_CORRIGEE"]))  # Quantité corrigée
+                        parts[5] = str(int(quantite_reelle))  # Quantité théorique = quantité réelle pour LOTECART
+                        parts[6] = str(int(quantite_reelle))  # Quantité réelle
                         parts[14] = "LOTECART"  # Numéro de lot LOTECART
-                        
-                        # FORCER l'INDICATEUR_COMPTE à 2 pour les LOTECART
-                        if len(parts) > 7:
-                            parts[7] = "2"
-                            logger.debug(f"INDICATEUR_COMPTE défini à 2 pour LOTECART {row['CODE_ARTICLE']}")
-                        else:
-                            logger.error(f"Impossible de définir INDICATEUR_COMPTE pour LOTECART {row['CODE_ARTICLE']}: seulement {len(parts)} colonnes")
-                        
-                        logger.debug(f"Ligne LOTECART après modification: {';'.join(parts)}")
-                        
-                        # Vérification finale
-                        if len(parts) <= 7:
-                            logger.error(f"Ligne de référence trop courte pour LOTECART {row['CODE_ARTICLE']}: {len(parts)} colonnes")
-                            continue
+                        parts[7] = "2"  # INDICATEUR_COMPTE à 2 pour LOTECART
 
                         new_lotecart_line = ";".join(parts)
                         lines.append(new_lotecart_line)
                         lotecart_lines_created += 1
                         logger.info(
-                            f"Nouvelle ligne LOTECART créée pour {row['CODE_ARTICLE']}: Quantité={parts[5]}, INDICATEUR_COMPTE={parts[7]}, NUMERO_LOT={parts[14]}"
+                            f"Nouvelle ligne LOTECART créée pour {row['CODE_ARTICLE']}: Qté théo={parts[5]}, Qté réelle={parts[6]}, INDICATEUR_COMPTE={parts[7]}"
                         )
-                        logger.debug(f"Ligne LOTECART complète: {new_lotecart_line}")
 
             # Écrire le fichier
             with open(final_file_path, "w", encoding="utf-8", newline="") as f:
@@ -551,38 +564,44 @@ class SageX3Processor:
                 session_id, final_file_path=final_file_path
             )
 
-            # Vérification finale des lignes LOTECART
-            lotecart_count_in_final = 0
-            lotecart_with_indicator_2 = 0
-            lotecart_with_indicator_1 = 0
-            for line in lines:
-                if "LOTECART" in line:
-                    lotecart_count_in_final += 1
-                    parts = line.split(";")
-                    if len(parts) > 7:
-                        if parts[7] == "2":
-                            lotecart_with_indicator_2 += 1
-                        elif parts[7] == "1":
-                            lotecart_with_indicator_1 += 1
-                            logger.warning(f"Ligne LOTECART avec INDICATEUR_COMPTE=1 détectée: {line.strip()}")
-                    else:
-                        logger.error(f"Ligne LOTECART avec format invalide: {line.strip()}")
-            
             logger.info(f"Fichier final généré: {final_file_path}")
             logger.info(
                 f"Total lignes traitées: {lines_processed}, Lignes ajustées: {lines_adjusted}, Nouvelles lignes LOTECART: {lotecart_lines_created}"
             )
-            logger.info(f"Vérification finale: {lotecart_count_in_final} lignes LOTECART dans le fichier final")
-            logger.info(f"  - {lotecart_with_indicator_2} avec INDICATEUR_COMPTE=2")
-            logger.info(f"  - {lotecart_with_indicator_1} avec INDICATEUR_COMPTE=1")
             
-            if lotecart_with_indicator_1 > 0:
-                logger.error(f"ATTENTION: {lotecart_with_indicator_1} lignes LOTECART ont encore INDICATEUR_COMPTE=1 !")
+            # Vérification finale
+            self._verify_final_file(final_file_path)
+            
             return final_file_path
 
         except Exception as e:
             logger.error(f"Erreur génération fichier final: {e}")
             raise
+    
+    def _verify_final_file(self, final_file_path: str):
+        """Vérifie le contenu du fichier final généré"""
+        try:
+            lotecart_count = 0
+            total_lines = 0
+            
+            with open(final_file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    if line.startswith('S;'):
+                        total_lines += 1
+                        if 'LOTECART' in line:
+                            lotecart_count += 1
+                            parts = line.strip().split(';')
+                            if len(parts) > 14:
+                                article = parts[8]
+                                qte_theo = parts[5]
+                                qte_reelle = parts[6]
+                                indicateur = parts[7]
+                                logger.info(f"LOTECART ligne {line_num}: {article} - Théo={qte_theo}, Réel={qte_reelle}, Indicateur={indicateur}")
+            
+            logger.info(f"Vérification finale: {lotecart_count} lignes LOTECART sur {total_lines} lignes S")
+            
+        except Exception as e:
+            logger.error(f"Erreur vérification fichier final: {e}")
 
 
 # Initialisation du processeur

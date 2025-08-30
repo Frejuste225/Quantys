@@ -358,16 +358,7 @@ class FileProcessorService:
         df["Type_Lot"] = lot_info.apply(lambda x: x[1] if x else "unknown")
 
         # Pré-marquer les lignes avec quantité = 0 comme potentiels LOTECART
-        # Marquer TOUTES les lignes avec quantité = 0, pas seulement les "unknown"
-        mask_zero_qty = df["QUANTITE"] == 0
-        df.loc[mask_zero_qty, "Type_Lot"] = "potential_lotecart"
-
-        # Log pour diagnostic
-        potential_lotecart_count = mask_zero_qty.sum()
-        if potential_lotecart_count > 0:
-            logger.info(
-                f"{potential_lotecart_count} lignes marquées comme potential_lotecart (quantité = 0)"
-            )
+        # Ne pas pré-marquer ici, la détection LOTECART se fait lors du traitement du template complété
 
         # Ajout des lignes originales
         df["original_s_line_raw"] = original_lines
