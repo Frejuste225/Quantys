@@ -17,10 +17,10 @@ sage_x3:
     NUMERO_LOT: 14
 
   validation:
-    required_line_types: ['E', 'L', 'S']
+    required_line_types: ["E", "L", "S"]
     min_columns: 15
     max_file_size_mb: 16
-    
+
   processing:
     aggregation_keys:
       - CODE_ARTICLE
@@ -29,21 +29,21 @@ sage_x3:
       - EMPLACEMENT
       - ZONE_PK
       - UNITE
-    
+
     distribution_strategies:
       - FIFO
       - LIFO
-      
+
   lot_patterns:
     # Patterns pour les lots avec priorité
-    type1_pattern: '^([A-Z0-9]{3,4})(\d{6})(\d+)$'  # Site + DDMMYY + numéro (priorité 1)
-    type2_pattern: '^LOT(\d{6})$'                    # LOT + DDMMYY (priorité 2)
+    type1_pattern: '^([A-Z0-9]{3,4})(\d{6})(\d+)$' # Site + DDMMYY + numéro (priorité 1)
+    type2_pattern: '^LOT(\d{6})$' # LOT + DDMMYY (priorité 2)
     # Note: LOTECART est détecté automatiquement quand quantité théorique = 0 ET quantité réelle > 0
     inventory_date_pattern: '(\d{2})(\d{2})INV'
-    
+
   lot_priority:
     # Ordre de priorité pour la répartition des écarts (seulement 2 types maintenant)
-    - type1  # Lots avec site + date (priorité maximale)
-    - type2  # Lots LOT + date (fallback)
+    - type1 # Lots avec site + date (priorité maximale)
+    - type2 # Lots LOT + date (fallback)
     - lotecart # Lots LOTECART (quantité théorique = 0, quantité réelle > 0)
     - unknown # Lots non reconnus (dernier recours)

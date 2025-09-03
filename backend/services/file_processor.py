@@ -27,10 +27,12 @@ class FileProcessorService:
 
         self.session_service = SessionService()
 
-        # Patterns pour les différents types de lots
+        # Patterns pour les différents types de lots (depuis la configuration)
         self.LOT_PATTERNS = {
-            "type1": r"^([A-Z0-9]{3,4})(\d{6})(\d+)$",  # CPKU070725xxxx, CB2TV020425xxxx, etc.
-            "type2": r"^LOT(\d{6})$",  # LOT311224
+            "type1": self.lot_patterns.get(
+                "type1_pattern", r"^([A-Z0-9]{3,4})(\d{6})(\d+)$"
+            ),
+            "type2": self.lot_patterns.get("type2_pattern", r"^LOT(\d{6})$"),
         }
         logger.info(
             f"FileProcessorService initialisé avec {len(self.SAGE_COLUMN_NAMES_ORDERED)} colonnes attendues"
@@ -177,7 +179,12 @@ class FileProcessorService:
 
         except Exception as e:
             logger.error(f"Erreur traitement fichier: {str(e)}", exc_info=True)
-            return False, str(e), [], None
+            from utils.error_handler import ErrorSanitizer
+
+            sanitized_error = ErrorSanitizer.sanitize_error_message(
+                e, include_type=False
+            )
+            return False, sanitized_error, [], None
 
     def _process_csv_file(
         self, filepath: str, expected_cols: int, session_timestamp: datetime
@@ -238,7 +245,12 @@ class FileProcessorService:
 
         except Exception as e:
             logger.error(f"Erreur traitement CSV: {e}")
-            return False, str(e), [], None
+            from utils.error_handler import ErrorSanitizer
+
+            sanitized_error = ErrorSanitizer.sanitize_error_message(
+                e, include_type=False
+            )
+            return False, sanitized_error, [], None
 
     def _process_xlsx_file(
         self, filepath: str, expected_cols: int, session_timestamp: datetime
@@ -343,7 +355,12 @@ class FileProcessorService:
 
         except Exception as e:
             logger.error(f"Erreur traitement XLSX: {e}")
-            return False, str(e), [], None
+            from utils.error_handler import ErrorSanitizer
+
+            sanitized_error = ErrorSanitizer.sanitize_error_message(
+                e, include_type=False
+            )
+            return False, sanitized_error, [], None
 
     def _process_dataframe(
         self, df: pd.DataFrame, original_lines: List[str]
@@ -598,22 +615,14 @@ class FileProcessorService:
     ) -> pd.DataFrame:
         """Récupère les lots originaux pour un article et un inventaire donnés"""
         try:
-            # Essayer de charger depuis le stockage persistant
+            # Charger depuis le stockage persistant
             original_df = self.session_service.load_dataframe(session_id, "original_df")
 
-            # Si pas trouvé, essayer depuis la compatibilité temporaire
             if original_df is None:
-                # Import ici pour éviter la référence circulaire
-                from app import processor
-
-                if hasattr(processor, "sessions") and session_id in processor.sessions:
-                    original_df = processor.sessions[session_id].get("original_df")
-
-                if original_df is None:
-                    logger.warning(
-                        f"DataFrame original non trouvé pour session {session_id}"
-                    )
-                    return pd.DataFrame()
+                logger.warning(
+                    f"DataFrame original non trouvé pour session {session_id}"
+                )
+                return pd.DataFrame()
 
             # Filtrer par article et inventaire
             lots = original_df[

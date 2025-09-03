@@ -17,7 +17,10 @@ load_dotenv()
 from services.session_service import SessionService
 from services.file_processor import FileProcessorService
 from services.file_manager import FileManager
+from services.lotecart_processor import LotecartProcessor
 from utils.validators import FileValidator
+from utils.error_handler import APIErrorHandler, handle_api_errors
+from utils.rate_limiter import apply_rate_limit
 from database import db_manager
 
 app = Flask(__name__)
@@ -83,8 +86,10 @@ class SageX3Processor:
     def __init__(self):
         self.session_service = session_service
         self.file_processor = file_processor
-        # Dictionnaire temporaire pour compatibilité
-        self.sessions = {}
+        # Initialiser le processeur LOTECART
+        from services.lotecart_processor import LotecartProcessor
+        self.lotecart_processor = LotecartProcessor()
+        self.lotecart_processor = LotecartProcessor()
 
     def process_completed_file(self, session_id: str, completed_file_path: str):
         """Traite le fichier Excel complété et calcule les écarts"""
@@ -130,11 +135,18 @@ class SageX3Processor:
                 completed_df["Quantité Réelle"] - completed_df["Quantité Théorique"]
             )
 
-            # Détection des lots LOTECART : quantité théorique = 0 ET quantité réelle > 0
-            lotecart_mask = (completed_df["Quantité Théorique"] == 0) & (
-                completed_df["Quantité Réelle"] > 0
-            )
-            completed_df.loc[lotecart_mask, "Type_Lot"] = "lotecart"
+            # Détection et traitement des lots LOTECART avec le processeur spécialisé
+            lotecart_candidates = self.lotecart_processor.detect_lotecart_candidates(completed_df)
+            
+            # Marquer les lignes LOTECART dans le DataFrame principal
+            if not lotecart_candidates.empty:
+                lotecart_mask = (completed_df["Quantité Théorique"] == 0) & (
+                    completed_df["Quantité Réelle"] > 0
+                )
+                completed_df.loc[lotecart_mask, "Type_Lot"] = "lotecart"
+                
+                # Sauvegarder les candidats LOTECART pour traitement ultérieur
+                self.session_service.save_dataframe(session_id, "lotecart_candidates", lotecart_candidates)
 
             # Filtrer les articles avec écarts
             discrepancies_df = completed_df[completed_df["Écart"] != 0].copy()
@@ -143,18 +155,9 @@ class SageX3Processor:
             total_discrepancy = float(discrepancies_df["Écart"].sum())
             adjusted_items_count = len(discrepancies_df)
 
-            # Stocker les résultats dans la session temporaire
-            if session_id not in self.sessions:
-                self.sessions[session_id] = {}
-
-            self.sessions[session_id].update(
-                {
-                    "completed_df": completed_df,
-                    "discrepancies_df": discrepancies_df,
-                    "total_discrepancy": total_discrepancy,
-                    "adjusted_items_count": adjusted_items_count,
-                }
-            )
+            # Sauvegarder les résultats dans les services
+            self.session_service.save_dataframe(session_id, "completed_df", completed_df)
+            self.session_service.save_dataframe(session_id, "discrepancies_df", discrepancies_df)
 
             # Mettre à jour la session en base
             self.session_service.update_session(
@@ -175,15 +178,12 @@ class SageX3Processor:
     def distribute_discrepancies(self, session_id: str, strategy: str = "FIFO"):
         """Distribue les écarts selon la stratégie choisie avec priorité sur les types de lots"""
         try:
-            session_data = self.sessions.get(session_id, {})
-            if (
-                "discrepancies_df" not in session_data
-                or "original_df" not in session_data
-            ):
+            # Charger les données depuis les services
+            discrepancies_df = self.session_service.load_dataframe(session_id, "discrepancies_df")
+            original_df = self.session_service.load_dataframe(session_id, "original_df")
+            
+            if discrepancies_df is None or original_df is None:
                 raise ValueError("Données de session manquantes pour la distribution")
-
-            discrepancies_df = session_data["discrepancies_df"]
-            original_df = session_data["original_df"]
 
             # Créer une liste pour stocker les ajustements
             adjustments = []
@@ -200,49 +200,24 @@ class SageX3Processor:
                 is_lotecart = discrepancy_row.get("Type_Lot") == "lotecart"
 
                 if is_lotecart:
-                    # Pour LOTECART, créer une nouvelle ligne avec LOTECART comme numéro de lot
+                    # Traitement LOTECART avec le processeur spécialisé
                     logger.info(
-                        f"Lot LOTECART détecté pour {code_article} - Quantité théorique: 0, Quantité réelle: {discrepancy_row.get('Quantité Réelle', 0)}"
+                        f"🎯 Lot LOTECART détecté pour {code_article} - "
+                        f"Quantité théorique: 0, Quantité réelle: {discrepancy_row.get('Quantité Réelle', 0)}"
                     )
                     
-                    quantite_reelle = discrepancy_row.get('Quantité Réelle', 0)
-
-                    # Trouver un lot de référence pour récupérer les métadonnées
-                    if numero_inventaire:
-                        reference_lots = original_df[
-                            (original_df["CODE_ARTICLE"] == code_article)
-                            & (original_df["NUMERO_INVENTAIRE"] == numero_inventaire)
-                        ]
-                    else:
-                        reference_lots = original_df[
-                            original_df["CODE_ARTICLE"] == code_article
-                        ]
-
-                    if not reference_lots.empty:
-                        ref_lot = reference_lots.iloc[0]
-
-                        # Créer une nouvelle ligne LOTECART
-                        adjustments.append(
-                            {
-                                "CODE_ARTICLE": code_article,
-                                "NUMERO_INVENTAIRE": numero_inventaire,
-                                "NUMERO_LOT": "LOTECART",
-                                "TYPE_LOT": "lotecart",
-                                "QUANTITE_ORIGINALE": 0,
-                                "AJUSTEMENT": quantite_reelle,
-                                "QUANTITE_CORRIGEE": quantite_reelle,
-                                "Date_Lot": None,
-                                "original_s_line_raw": pd.NA,  # Nouvelle ligne à créer
-                                "reference_line": ref_lot[
-                                    "original_s_line_raw"
-                                ],  # Pour récupérer les métadonnées
-                            }
-                        )
-                        logger.info(
-                            f"LOTECART: Nouvelle ligne créée pour {code_article} avec quantité {quantite_reelle}"
-                        )
-                    else:
-                        logger.warning(f"LOTECART: Aucune ligne de référence trouvée pour {code_article} dans l'inventaire {numero_inventaire}")
+                    # Créer un DataFrame temporaire pour ce candidat LOTECART
+                    lotecart_candidate = pd.DataFrame([discrepancy_row])
+                    
+                    # Utiliser le processeur LOTECART pour créer les ajustements
+                    lotecart_adjustments = self.lotecart_processor.create_lotecart_adjustments(
+                        lotecart_candidate, original_df
+                    )
+                    
+                    # Ajouter les ajustements LOTECART à la liste principale
+                    adjustments.extend(lotecart_adjustments)
+                    
+                    logger.info(f"✅ {len(lotecart_adjustments)} ajustements LOTECART créés pour {code_article}")
                     continue
 
                 # Traitement normal pour les autres types de lots
@@ -305,9 +280,8 @@ class SageX3Processor:
             # Convertir en DataFrame
             distributed_df = pd.DataFrame(adjustments)
 
-            # Stocker dans la session
-            self.sessions[session_id]["distributed_df"] = distributed_df
-            self.sessions[session_id]["strategy_used"] = strategy
+            # Sauvegarder dans les services
+            self.session_service.save_dataframe(session_id, "distributed_df", distributed_df)
 
             logger.info(
                 f"Écarts distribués pour session {session_id} avec stratégie {strategy}: {len(adjustments)} ajustements"
@@ -357,24 +331,22 @@ class SageX3Processor:
     def generate_final_file(self, session_id: str):
         """Génère le fichier CSV final au format Sage X3 avec TOUTES les lignes originales"""
         try:
-            session_data = self.sessions.get(session_id, {})
-            if (
-                "distributed_df" not in session_data
-                or "header_lines" not in session_data
-                or "original_df" not in session_data
-                or "completed_df" not in session_data
-            ):
+            # Charger les données depuis les services
+            distributed_df = self.session_service.load_dataframe(session_id, "distributed_df")
+            original_df = self.session_service.load_dataframe(session_id, "original_df")
+            completed_df = self.session_service.load_dataframe(session_id, "completed_df")
+            
+            if distributed_df is None or original_df is None or completed_df is None:
                 raise ValueError("Données manquantes pour générer le fichier final")
-
-            distributed_df = session_data["distributed_df"]
-            header_lines = session_data["header_lines"]
-            original_df = session_data["original_df"]
-            completed_df = session_data["completed_df"]
 
             # Récupérer les données de session depuis la base
             db_session_data = self.session_service.get_session_data(session_id)
             if not db_session_data:
                 raise ValueError("Session non trouvée en base")
+            
+            # Récupérer les header_lines depuis la base
+            import json
+            header_lines = json.loads(db_session_data["header_lines"]) if db_session_data["header_lines"] else []
 
             # Construire le nom du fichier
             original_filename = db_session_data["original_filename"]
@@ -443,37 +415,50 @@ class SageX3Processor:
                         # Récupérer la quantité réelle depuis le template complété
                         quantite_reelle = real_quantities_dict.get(key, 0)
 
-                        # Vérifier s'il y a un ajustement pour cette ligne
+                        # 🎯 LOGIQUE AMÉLIORÉE : Quantités théoriques ajustées + quantités réelles saisies
+                        
+                        # 1. TOUJOURS mettre à jour la quantité réelle depuis le template complété
+                        if quantite_reelle is not None:
+                            parts[6] = str(int(quantite_reelle))  # Colonne 6 = Quantité réelle saisie
+                        
+                        # 2. Vérifier s'il y a un ajustement pour cette ligne
                         if key in adjustments_dict:
-                            # Appliquer l'ajustement
                             adjustment = adjustments_dict[key]
                             
-                            # Pour les LOTECART, utiliser la quantité réelle comme quantité théorique
+                            # 3. Appliquer l'ajustement sur la quantité théorique (colonne 5)
                             if adjustment["TYPE_LOT"] == "lotecart":
-                                parts[5] = str(int(quantite_reelle))  # Quantité théorique = quantité réelle
-                                parts[6] = str(int(quantite_reelle))  # Quantité réelle
+                                # Pour LOTECART : quantité théorique = quantité réelle (pas d'écart)
+                                parts[5] = str(int(quantite_reelle))
+                                logger.debug(f"🏷️ LOTECART {code_article}: Qté théo = Qté réelle = {quantite_reelle}")
                             else:
-                                parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))  # Quantité théorique ajustée
-                                parts[6] = str(int(quantite_reelle))  # Quantité réelle
+                                # Pour ajustements normaux : quantité théorique ajustée
+                                parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))
+                                logger.debug(f"⚖️ Ajustement {code_article}: Qté théo ajustée = {adjustment['QUANTITE_CORRIGEE']}, Qté réelle = {quantite_reelle}")
 
-                            # S'assurer que le numéro de lot est correct (colonne 14, index 14)
+                            # 4. S'assurer que le numéro de lot est correct
                             if len(parts) > 14:
-                                if (
-                                    adjustment["TYPE_LOT"] == "lotecart"
-                                    or numero_lot == "LOTECART"
-                                ):
+                                if adjustment["TYPE_LOT"] == "lotecart" or numero_lot == "LOTECART":
                                     parts[14] = "LOTECART"
                                 else:
                                     parts[14] = numero_lot
 
                             lines_adjusted += 1
-                            logger.debug(
-                                f"Ligne ajustée: {code_article} - {numero_lot} - Qté théo: {parts[5]}, Qté réelle: {parts[6]}"
-                            )
+                            
                         else:
-                            # Même pour les lignes non ajustées, mettre à jour la quantité réelle
-                            if quantite_reelle is not None:
-                                parts[6] = str(int(quantite_reelle))
+                            # 5. Pour les lignes NON ajustées : garder quantité théorique originale
+                            # La quantité réelle a déjà été mise à jour ci-dessus
+                            quantite_theo_originale = parts[5]
+                            logger.debug(f"📋 Ligne standard {code_article}: Qté théo originale = {quantite_theo_originale}, Qté réelle saisie = {quantite_reelle}")
+                        
+                        # 6. Log de vérification pour traçabilité
+                        final_qte_theo = parts[5]
+                        final_qte_reelle = parts[6]
+                        ecart_final = float(final_qte_reelle) - float(final_qte_theo) if final_qte_theo and final_qte_reelle else 0
+                        
+                        if abs(ecart_final) > 0.001:  # Il y a encore un écart
+                            logger.debug(f"📊 {code_article} - Écart final: {ecart_final} (Théo: {final_qte_theo}, Réel: {final_qte_reelle})")
+                        else:
+                            logger.debug(f"✅ {code_article} - Pas d'écart (Théo: {final_qte_theo}, Réel: {final_qte_reelle})")
 
                         # Vérifier si la quantité finale est nulle et mettre INDICATEUR_COMPTE à 2
                         quantite_finale = float(parts[5]) if parts[5] else 0
@@ -501,7 +486,7 @@ class SageX3Processor:
                         lines.append(corrected_line)
                         lines_processed += 1
 
-            # Ajouter les nouvelles lignes LOTECART si nécessaire
+            # Générer les nouvelles lignes LOTECART avec le processeur spécialisé
             max_line_number = 0
             if original_df is not None and not original_df.empty:
                 # Extraire les numéros de ligne existants pour éviter les doublons
@@ -517,42 +502,41 @@ class SageX3Processor:
                             pass
                 max_line_number = max(line_numbers) if line_numbers else 0
 
-            # Ajouter les nouvelles lignes LOTECART qui n'existaient pas dans l'original
-            lotecart_lines_created = 0
-            for _, row in distributed_df.iterrows():
-                if (
-                    row["TYPE_LOT"] == "lotecart"
-                    and (
-                        pd.isna(row.get("original_s_line_raw"))
-                        or row.get("original_s_line_raw") is None
-                    )
-                    and pd.notna(row.get("reference_line"))
-                ):
-                    # Créer une nouvelle ligne LOTECART basée sur la ligne de référence
-                    reference_line = str(row["reference_line"])
-                    parts = reference_line.split(";")
+            # Filtrer les ajustements LOTECART qui nécessitent de nouvelles lignes
+            lotecart_adjustments = [
+                adj for _, adj in distributed_df.iterrows()
+                if (adj.get("TYPE_LOT") == "lotecart" and 
+                    (pd.isna(adj.get("original_s_line_raw")) or adj.get("original_s_line_raw") is None))
+            ]
+            
+            # Convertir en format attendu par le processeur LOTECART
+            lotecart_adjustments_dict = []
+            for adj in lotecart_adjustments:
+                # Récupérer la quantité réelle depuis le template complété
+                key = (adj["CODE_ARTICLE"], adj["NUMERO_INVENTAIRE"], "LOTECART")
+                quantite_reelle = real_quantities_dict.get(key, adj["QUANTITE_CORRIGEE"])
+                
+                lotecart_adjustments_dict.append({
+                    "CODE_ARTICLE": adj["CODE_ARTICLE"],
+                    "NUMERO_INVENTAIRE": adj["NUMERO_INVENTAIRE"],
+                    "NUMERO_LOT": "LOTECART",
+                    "TYPE_LOT": "lotecart",
+                    "QUANTITE_CORRIGEE": adj["QUANTITE_CORRIGEE"],
+                    "QUANTITE_REELLE": quantite_reelle,  # Ajouter la quantité réelle
+                    "reference_line": adj.get("reference_line"),
+                    "is_new_lotecart": True
+                })
 
-                    if len(parts) >= 15:  # S'assurer qu'on a assez de colonnes
-                        # Générer un nouveau numéro de ligne
-                        max_line_number += 1000  # Incrément pour éviter les conflits
-                        
-                        # Récupérer la quantité réelle depuis le template complété
-                        key = (row["CODE_ARTICLE"], row["NUMERO_INVENTAIRE"], "LOTECART")
-                        quantite_reelle = real_quantities_dict.get(key, row["QUANTITE_CORRIGEE"])
-
-                        # Modifier les champs nécessaires pour LOTECART
-                        parts[3] = str(max_line_number)  # Nouveau numéro de ligne
-                        parts[5] = str(int(quantite_reelle))  # Quantité théorique = quantité réelle pour LOTECART
-                        parts[6] = str(int(quantite_reelle))  # Quantité réelle
-                        parts[14] = "LOTECART"  # Numéro de lot LOTECART
-                        parts[7] = "2"  # INDICATEUR_COMPTE à 2 pour LOTECART
-
-                        new_lotecart_line = ";".join(parts)
-                        lines.append(new_lotecart_line)
-                        lotecart_lines_created += 1
-                        logger.info(
-                            f"Nouvelle ligne LOTECART créée pour {row['CODE_ARTICLE']}: Qté théo={parts[5]}, Qté réelle={parts[6]}, INDICATEUR_COMPTE={parts[7]}"
-                        )
+            # Générer les nouvelles lignes LOTECART
+            new_lotecart_lines = self.lotecart_processor.generate_lotecart_lines(
+                lotecart_adjustments_dict, max_line_number
+            )
+            
+            # Ajouter les nouvelles lignes au fichier
+            lines.extend(new_lotecart_lines)
+            lotecart_lines_created = len(new_lotecart_lines)
+            
+            logger.info(f"🎯 {lotecart_lines_created} nouvelles lignes LOTECART ajoutées au fichier final")
 
             # Écrire le fichier
             with open(final_file_path, "w", encoding="utf-8", newline="") as f:
@@ -569,8 +553,26 @@ class SageX3Processor:
                 f"Total lignes traitées: {lines_processed}, Lignes ajustées: {lines_adjusted}, Nouvelles lignes LOTECART: {lotecart_lines_created}"
             )
             
-            # Vérification finale
-            self._verify_final_file(final_file_path)
+            # Vérification finale avec le processeur LOTECART
+            expected_lotecart_count = lotecart_lines_created
+            validation_result = self.lotecart_processor.validate_lotecart_processing(
+                final_file_path, expected_lotecart_count
+            )
+            
+            if validation_result["success"]:
+                logger.info("✅ Validation LOTECART réussie")
+            else:
+                logger.warning(f"⚠️ Problèmes détectés lors de la validation LOTECART: {validation_result['issues']}")
+            
+            # Vérification finale générale avec résumé détaillé
+            summary = self._verify_final_file_with_summary(final_file_path)
+            logger.info(f"📊 Résumé du fichier final: {summary}")
+            
+            # Vérification spécifique des quantités théoriques ajustées vs quantités réelles
+            quantities_verification = self._verify_quantities_consistency(
+                final_file_path, completed_df, distributed_df
+            )
+            logger.info(f"🔍 Vérification quantités: {quantities_verification}")
             
             return final_file_path
 
@@ -578,30 +580,512 @@ class SageX3Processor:
             logger.error(f"Erreur génération fichier final: {e}")
             raise
     
-    def _verify_final_file(self, final_file_path: str):
-        """Vérifie le contenu du fichier final généré"""
+    def _verify_final_file_with_summary(self, final_file_path: str) -> dict:
+        """Vérifie le contenu du fichier final généré et retourne un résumé détaillé"""
+        summary = {
+            "success": True,
+            "file_path": final_file_path,
+            "verification_timestamp": datetime.now().isoformat(),
+            "structure": {
+                "total_lines": 0,
+                "header_lines_e": 0,
+                "header_lines_l": 0,
+                "data_lines_s": 0,
+                "invalid_lines": 0
+            },
+            "quantities": {
+                "total_theoretical": 0.0,
+                "total_real": 0.0,
+                "total_discrepancy": 0.0,
+                "zero_theoretical_count": 0,
+                "zero_real_count": 0,
+                "negative_quantities": 0
+            },
+            "lotecart": {
+                "total_lines": 0,
+                "correct_indicators": 0,
+                "incorrect_indicators": 0,
+                "sample_articles": []
+            },
+            "adjustments": {
+                "lines_with_adjustments": 0,
+                "lines_with_indicator_2": 0,
+                "articles_adjusted": set(),
+                "adjustment_summary": {}
+            },
+            "quality": {
+                "lines_with_missing_data": 0,
+                "lines_with_invalid_quantities": 0,
+                "duplicate_line_numbers": [],
+                "inconsistent_inventories": []
+            },
+            "sample_data": {
+                "first_10_s_lines": [],
+                "lotecart_samples": [],
+                "adjustment_samples": []
+            },
+            "issues": [],
+            "warnings": []
+        }
+        
         try:
-            lotecart_count = 0
-            total_lines = 0
+            if not os.path.exists(final_file_path):
+                summary["success"] = False
+                summary["issues"].append("Fichier final non trouvé")
+                return summary
+            
+            # Dictionnaires pour tracking
+            line_numbers_seen = set()
+            inventories_seen = set()
+            articles_by_inventory = {}
             
             with open(final_file_path, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
-                    if line.startswith('S;'):
-                        total_lines += 1
-                        if 'LOTECART' in line:
-                            lotecart_count += 1
-                            parts = line.strip().split(';')
-                            if len(parts) > 14:
-                                article = parts[8]
-                                qte_theo = parts[5]
-                                qte_reelle = parts[6]
-                                indicateur = parts[7]
-                                logger.info(f"LOTECART ligne {line_num}: {article} - Théo={qte_theo}, Réel={qte_reelle}, Indicateur={indicateur}")
+                    line = line.strip()
+                    summary["structure"]["total_lines"] += 1
+                    
+                    if not line:
+                        continue
+                    
+                    # Analyser selon le type de ligne
+                    if line.startswith('E;'):
+                        summary["structure"]["header_lines_e"] += 1
+                        
+                    elif line.startswith('L;'):
+                        summary["structure"]["header_lines_l"] += 1
+                        
+                    elif line.startswith('S;'):
+                        self._analyze_s_line(line, line_num, summary, line_numbers_seen, 
+                                           inventories_seen, articles_by_inventory)
+                        
+                    else:
+                        summary["structure"]["invalid_lines"] += 1
+                        summary["warnings"].append(f"Ligne {line_num}: Format non reconnu")
             
-            logger.info(f"Vérification finale: {lotecart_count} lignes LOTECART sur {total_lines} lignes S")
+            # Post-traitement et calculs finaux
+            self._finalize_verification_summary(summary, articles_by_inventory)
+            
+            # Validation finale
+            self._validate_file_integrity(summary)
+            
+            logger.info(f"✅ Vérification fichier final terminée: {summary['structure']['data_lines_s']} lignes S, "
+                       f"{summary['lotecart']['total_lines']} LOTECART, "
+                       f"{summary['adjustments']['lines_with_adjustments']} ajustements")
+            
+            return summary
             
         except Exception as e:
-            logger.error(f"Erreur vérification fichier final: {e}")
+            logger.error(f"❌ Erreur vérification fichier final: {e}", exc_info=True)
+            summary["success"] = False
+            summary["issues"].append(f"Erreur de vérification: {str(e)}")
+            return summary
+    
+    def _analyze_s_line(self, line: str, line_num: int, summary: dict, 
+                       line_numbers_seen: set, inventories_seen: set, 
+                       articles_by_inventory: dict):
+        """Analyse une ligne S; en détail"""
+        try:
+            parts = line.split(';')
+            summary["structure"]["data_lines_s"] += 1
+            
+            # Vérifier la structure minimale
+            if len(parts) < 15:
+                summary["quality"]["lines_with_missing_data"] += 1
+                summary["warnings"].append(f"Ligne {line_num}: Structure incomplète ({len(parts)} colonnes)")
+                return
+            
+            # Extraire les données principales
+            numero_session = parts[1]
+            numero_inventaire = parts[2]
+            rang = parts[3]
+            site = parts[4]
+            qte_theo_str = parts[5]
+            qte_reelle_str = parts[6]
+            indicateur = parts[7]
+            code_article = parts[8]
+            emplacement = parts[9]
+            statut = parts[10]
+            unite = parts[11]
+            valeur_str = parts[12]
+            zone_pk = parts[13]
+            numero_lot = parts[14]
+            
+            # Validation et conversion des quantités
+            try:
+                qte_theo = float(qte_theo_str) if qte_theo_str else 0.0
+                qte_reelle = float(qte_reelle_str) if qte_reelle_str else 0.0
+            except ValueError:
+                summary["quality"]["lines_with_invalid_quantities"] += 1
+                summary["warnings"].append(f"Ligne {line_num}: Quantités invalides")
+                return
+            
+            # Vérifier les quantités négatives
+            if qte_theo < 0 or qte_reelle < 0:
+                summary["quantities"]["negative_quantities"] += 1
+                summary["warnings"].append(f"Ligne {line_num}: Quantités négatives détectées")
+            
+            # Accumuler les totaux
+            summary["quantities"]["total_theoretical"] += qte_theo
+            summary["quantities"]["total_real"] += qte_reelle
+            summary["quantities"]["total_discrepancy"] += (qte_reelle - qte_theo)
+            
+            # Compter les zéros
+            if qte_theo == 0:
+                summary["quantities"]["zero_theoretical_count"] += 1
+            if qte_reelle == 0:
+                summary["quantities"]["zero_real_count"] += 1
+            
+            # Analyser les LOTECART
+            if numero_lot == "LOTECART":
+                summary["lotecart"]["total_lines"] += 1
+                
+                if indicateur == "2":
+                    summary["lotecart"]["correct_indicators"] += 1
+                else:
+                    summary["lotecart"]["incorrect_indicators"] += 1
+                    summary["warnings"].append(f"Ligne {line_num}: LOTECART avec indicateur incorrect ({indicateur})")
+                
+                # Échantillon LOTECART
+                if len(summary["lotecart"]["sample_articles"]) < 5:
+                    summary["lotecart"]["sample_articles"].append({
+                        "line_number": line_num,
+                        "article": code_article,
+                        "inventory": numero_inventaire,
+                        "quantity_theo": qte_theo,
+                        "quantity_real": qte_reelle,
+                        "indicator": indicateur
+                    })
+            
+            # Analyser les ajustements (indicateur = 2)
+            if indicateur == "2":
+                summary["adjustments"]["lines_with_indicator_2"] += 1
+                
+                # Détecter si c'est un ajustement (écart non nul)
+                if abs(qte_reelle - qte_theo) > 0.001:
+                    summary["adjustments"]["lines_with_adjustments"] += 1
+                    summary["adjustments"]["articles_adjusted"].add(code_article)
+                    
+                    # Résumé par article
+                    if code_article not in summary["adjustments"]["adjustment_summary"]:
+                        summary["adjustments"]["adjustment_summary"][code_article] = {
+                            "total_discrepancy": 0,
+                            "lines_count": 0,
+                            "inventories": set()
+                        }
+                    
+                    summary["adjustments"]["adjustment_summary"][code_article]["total_discrepancy"] += (qte_reelle - qte_theo)
+                    summary["adjustments"]["adjustment_summary"][code_article]["lines_count"] += 1
+                    summary["adjustments"]["adjustment_summary"][code_article]["inventories"].add(numero_inventaire)
+            
+            # Vérifier les doublons de numéros de ligne
+            try:
+                rang_int = int(rang)
+                if rang_int in line_numbers_seen:
+                    summary["quality"]["duplicate_line_numbers"].append(rang_int)
+                else:
+                    line_numbers_seen.add(rang_int)
+            except ValueError:
+                summary["warnings"].append(f"Ligne {line_num}: Numéro de rang invalide ({rang})")
+            
+            # Tracking des inventaires
+            inventories_seen.add(numero_inventaire)
+            if numero_inventaire not in articles_by_inventory:
+                articles_by_inventory[numero_inventaire] = set()
+            articles_by_inventory[numero_inventaire].add(code_article)
+            
+            # Échantillons pour les 10 premières lignes S
+            if len(summary["sample_data"]["first_10_s_lines"]) < 10:
+                summary["sample_data"]["first_10_s_lines"].append({
+                    "line_number": line_num,
+                    "article": code_article,
+                    "inventory": numero_inventaire,
+                    "lot": numero_lot,
+                    "qty_theo": qte_theo,
+                    "qty_real": qte_reelle,
+                    "indicator": indicateur,
+                    "site": site
+                })
+            
+            # Échantillons d'ajustements
+            if (abs(qte_reelle - qte_theo) > 0.001 and 
+                len(summary["sample_data"]["adjustment_samples"]) < 5):
+                summary["sample_data"]["adjustment_samples"].append({
+                    "line_number": line_num,
+                    "article": code_article,
+                    "inventory": numero_inventaire,
+                    "lot": numero_lot,
+                    "qty_theo": qte_theo,
+                    "qty_real": qte_reelle,
+                    "discrepancy": qte_reelle - qte_theo,
+                    "indicator": indicateur
+                })
+                
+        except Exception as e:
+            summary["warnings"].append(f"Ligne {line_num}: Erreur d'analyse - {str(e)}")
+    
+    def _finalize_verification_summary(self, summary: dict, articles_by_inventory: dict):
+        """Finalise le résumé de vérification avec des calculs additionnels"""
+        try:
+            # Convertir les sets en listes pour la sérialisation JSON
+            summary["adjustments"]["articles_adjusted"] = list(summary["adjustments"]["articles_adjusted"])
+            
+            # Finaliser les résumés d'ajustements
+            for article, adj_data in summary["adjustments"]["adjustment_summary"].items():
+                adj_data["inventories"] = list(adj_data["inventories"])
+            
+            # Statistiques par inventaire
+            summary["inventories"] = {}
+            for inventory, articles in articles_by_inventory.items():
+                summary["inventories"][inventory] = {
+                    "articles_count": len(articles),
+                    "articles_list": list(articles)[:10]  # Limiter à 10 pour éviter la surcharge
+                }
+            
+            # Calculs de pourcentages
+            total_s_lines = summary["structure"]["data_lines_s"]
+            if total_s_lines > 0:
+                summary["statistics"] = {
+                    "lotecart_percentage": round((summary["lotecart"]["total_lines"] / total_s_lines) * 100, 2),
+                    "adjustment_percentage": round((summary["adjustments"]["lines_with_adjustments"] / total_s_lines) * 100, 2),
+                    "zero_theo_percentage": round((summary["quantities"]["zero_theoretical_count"] / total_s_lines) * 100, 2),
+                    "indicator_2_percentage": round((summary["adjustments"]["lines_with_indicator_2"] / total_s_lines) * 100, 2)
+                }
+            
+            # Résumé global
+            summary["global_summary"] = {
+                "total_inventories": len(articles_by_inventory),
+                "total_articles_unique": len(set().union(*[articles for articles in articles_by_inventory.values()])),
+                "total_discrepancy_value": round(summary["quantities"]["total_discrepancy"], 2),
+                "has_lotecart": summary["lotecart"]["total_lines"] > 0,
+                "has_adjustments": summary["adjustments"]["lines_with_adjustments"] > 0
+            }
+            
+        except Exception as e:
+            summary["warnings"].append(f"Erreur finalisation résumé: {str(e)}")
+    
+    def _validate_file_integrity(self, summary: dict):
+        """Valide l'intégrité globale du fichier"""
+        try:
+            # Vérifications critiques
+            if summary["structure"]["data_lines_s"] == 0:
+                summary["issues"].append("Aucune ligne de données S; trouvée")
+                summary["success"] = False
+            
+            if summary["structure"]["header_lines_e"] == 0:
+                summary["warnings"].append("Aucune ligne d'en-tête E; trouvée")
+            
+            if summary["structure"]["header_lines_l"] == 0:
+                summary["warnings"].append("Aucune ligne d'inventaire L; trouvée")
+            
+            # Vérifications LOTECART
+            if summary["lotecart"]["total_lines"] > 0:
+                if summary["lotecart"]["incorrect_indicators"] > 0:
+                    summary["issues"].append(
+                        f"{summary['lotecart']['incorrect_indicators']} lignes LOTECART avec indicateurs incorrects"
+                    )
+            
+            # Vérifications de cohérence
+            if len(summary["quality"]["duplicate_line_numbers"]) > 0:
+                summary["issues"].append(
+                    f"Numéros de ligne dupliqués: {summary['quality']['duplicate_line_numbers'][:10]}"
+                )
+            
+            # Vérifications des quantités
+            if summary["quantities"]["negative_quantities"] > 0:
+                summary["warnings"].append(
+                    f"{summary['quantities']['negative_quantities']} lignes avec quantités négatives"
+                )
+            
+            # Score de qualité (0-100)
+            quality_score = 100
+            quality_score -= min(len(summary["issues"]) * 20, 80)  # -20 par issue critique
+            quality_score -= min(len(summary["warnings"]) * 5, 20)  # -5 par warning
+            quality_score -= min(summary["quality"]["lines_with_invalid_quantities"] * 2, 10)
+            
+            summary["quality_score"] = max(quality_score, 0)
+            
+            # Déterminer le succès global
+            if len(summary["issues"]) > 0:
+                summary["success"] = False
+            
+        except Exception as e:
+            summary["issues"].append(f"Erreur validation intégrité: {str(e)}")
+            summary["success"] = False
+    
+    def _verify_quantities_consistency(self, final_file_path: str, completed_df: pd.DataFrame, distributed_df: pd.DataFrame) -> dict:
+        """Vérifie la cohérence entre quantités théoriques ajustées et quantités réelles"""
+        verification = {
+            "success": True,
+            "total_lines_checked": 0,
+            "consistent_lines": 0,
+            "inconsistent_lines": 0,
+            "lotecart_lines": 0,
+            "adjusted_lines": 0,
+            "standard_lines": 0,
+            "issues": [],
+            "samples": {
+                "consistent": [],
+                "inconsistent": [],
+                "lotecart": [],
+                "adjusted": []
+            }
+        }
+        
+        try:
+            # Créer les dictionnaires de référence
+            completed_dict = {}
+            for _, row in completed_df.iterrows():
+                key = (row["Code Article"], row["Numéro Inventaire"], str(row["Numéro Lot"]).strip())
+                completed_dict[key] = {
+                    "qte_theo_originale": row["Quantité Théorique"],
+                    "qte_reelle_saisie": row["Quantité Réelle"]
+                }
+            
+            adjustments_dict = {}
+            for _, row in distributed_df.iterrows():
+                key = (row["CODE_ARTICLE"], row["NUMERO_INVENTAIRE"], str(row["NUMERO_LOT"]).strip())
+                adjustments_dict[key] = {
+                    "qte_theo_ajustee": row["QUANTITE_CORRIGEE"],
+                    "type_lot": row["TYPE_LOT"],
+                    "ajustement": row["AJUSTEMENT"]
+                }
+            
+            # Analyser le fichier final
+            with open(final_file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    if line.startswith('S;'):
+                        parts = line.strip().split(';')
+                        if len(parts) >= 15:
+                            verification["total_lines_checked"] += 1
+                            
+                            # Extraire les données
+                            code_article = parts[8]
+                            numero_inventaire = parts[2]
+                            numero_lot = parts[14].strip()
+                            qte_theo_finale = float(parts[5]) if parts[5] else 0
+                            qte_reelle_finale = float(parts[6]) if parts[6] else 0
+                            
+                            key = (code_article, numero_inventaire, numero_lot)
+                            
+                            # Récupérer les données de référence
+                            completed_data = completed_dict.get(key, {})
+                            adjustment_data = adjustments_dict.get(key, {})
+                            
+                            # Déterminer le type de ligne
+                            line_type = "standard"
+                            expected_qte_theo = completed_data.get("qte_theo_originale", 0)
+                            expected_qte_reelle = completed_data.get("qte_reelle_saisie", 0)
+                            
+                            if numero_lot == "LOTECART":
+                                line_type = "lotecart"
+                                verification["lotecart_lines"] += 1
+                                # Pour LOTECART : qté théo = qté réelle
+                                expected_qte_theo = expected_qte_reelle
+                            elif key in adjustments_dict:
+                                line_type = "adjusted"
+                                verification["adjusted_lines"] += 1
+                                # Pour ajustements : qté théo ajustée
+                                expected_qte_theo = adjustment_data["qte_theo_ajustee"]
+                            else:
+                                verification["standard_lines"] += 1
+                            
+                            # Vérifier la cohérence
+                            theo_ok = abs(qte_theo_finale - expected_qte_theo) < 0.001
+                            reelle_ok = abs(qte_reelle_finale - expected_qte_reelle) < 0.001
+                            
+                            if theo_ok and reelle_ok:
+                                verification["consistent_lines"] += 1
+                                
+                                # Échantillon de lignes cohérentes
+                                if len(verification["samples"]["consistent"]) < 3:
+                                    verification["samples"]["consistent"].append({
+                                        "line": line_num,
+                                        "article": code_article,
+                                        "lot": numero_lot,
+                                        "type": line_type,
+                                        "qte_theo": qte_theo_finale,
+                                        "qte_reelle": qte_reelle_finale
+                                    })
+                            else:
+                                verification["inconsistent_lines"] += 1
+                                
+                                # Détail de l'incohérence
+                                issue = {
+                                    "line": line_num,
+                                    "article": code_article,
+                                    "lot": numero_lot,
+                                    "type": line_type,
+                                    "qte_theo_attendue": expected_qte_theo,
+                                    "qte_theo_trouvee": qte_theo_finale,
+                                    "qte_reelle_attendue": expected_qte_reelle,
+                                    "qte_reelle_trouvee": qte_reelle_finale,
+                                    "theo_ok": theo_ok,
+                                    "reelle_ok": reelle_ok
+                                }
+                                
+                                verification["issues"].append(
+                                    f"Ligne {line_num} ({code_article}): "
+                                    f"Théo attendue={expected_qte_theo}, trouvée={qte_theo_finale}, "
+                                    f"Réelle attendue={expected_qte_reelle}, trouvée={qte_reelle_finale}"
+                                )
+                                
+                                # Échantillon d'incohérences
+                                if len(verification["samples"]["inconsistent"]) < 5:
+                                    verification["samples"]["inconsistent"].append(issue)
+                            
+                            # Échantillons par type
+                            if line_type == "lotecart" and len(verification["samples"]["lotecart"]) < 3:
+                                verification["samples"]["lotecart"].append({
+                                    "line": line_num,
+                                    "article": code_article,
+                                    "qte_theo": qte_theo_finale,
+                                    "qte_reelle": qte_reelle_finale,
+                                    "consistent": theo_ok and reelle_ok
+                                })
+                            elif line_type == "adjusted" and len(verification["samples"]["adjusted"]) < 3:
+                                verification["samples"]["adjusted"].append({
+                                    "line": line_num,
+                                    "article": code_article,
+                                    "lot": numero_lot,
+                                    "qte_theo_originale": completed_data.get("qte_theo_originale", 0),
+                                    "qte_theo_ajustee": qte_theo_finale,
+                                    "qte_reelle": qte_reelle_finale,
+                                    "ajustement": adjustment_data.get("ajustement", 0),
+                                    "consistent": theo_ok and reelle_ok
+                                })
+            
+            # Calculs finaux
+            if verification["total_lines_checked"] > 0:
+                consistency_rate = (verification["consistent_lines"] / verification["total_lines_checked"]) * 100
+                verification["consistency_rate"] = round(consistency_rate, 2)
+                
+                if consistency_rate < 95:
+                    verification["success"] = False
+                    verification["issues"].insert(0, f"Taux de cohérence trop faible: {consistency_rate}%")
+            
+            # Résumé
+            verification["summary"] = {
+                "total_checked": verification["total_lines_checked"],
+                "consistent": verification["consistent_lines"],
+                "inconsistent": verification["inconsistent_lines"],
+                "consistency_rate": verification.get("consistency_rate", 0),
+                "lotecart_count": verification["lotecart_lines"],
+                "adjusted_count": verification["adjusted_lines"],
+                "standard_count": verification["standard_lines"]
+            }
+            
+            logger.info(
+                f"✅ Vérification quantités terminée: {verification['consistent_lines']}/{verification['total_lines_checked']} "
+                f"lignes cohérentes ({verification.get('consistency_rate', 0)}%)"
+            )
+            
+            return verification
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur vérification quantités: {e}", exc_info=True)
+            verification["success"] = False
+            verification["issues"].append(f"Erreur de vérification: {str(e)}")
+            return verification
 
 
 # Initialisation du processeur
@@ -610,6 +1094,8 @@ processor = SageX3Processor()
 
 # Endpoints API
 @app.route("/api/upload", methods=["POST"])
+@apply_rate_limit("upload")
+@handle_api_errors("file_upload")
 def upload_file():
     """Endpoint amélioré pour l'upload initial d'un fichier Sage X3"""
     if "file" not in request.files:
@@ -686,12 +1172,9 @@ def upload_file():
             header_lines=json.dumps(headers),
         )
 
-        # Compatibilité temporaire
-        processor.sessions[session_id] = {
-            "original_df": original_df,
-            "aggregated_df": aggregated_df,
-            "header_lines": headers,
-        }
+        # Sauvegarder les DataFrames de manière persistante
+        session_service.save_dataframe(session_id, "original_df", original_df)
+        session_service.save_dataframe(session_id, "aggregated_df", aggregated_df)
 
         # Sauvegarder aussi dans le stockage persistant
         session_service.save_dataframe(session_id, "original_df", original_df)
@@ -723,6 +1206,8 @@ def upload_file():
 
 
 @app.route("/api/process", methods=["POST"])
+@apply_rate_limit("upload")
+@handle_api_errors("file_processing")
 def process_completed_file_route():
     """Endpoint amélioré pour traiter le fichier complété"""
     if "file" not in request.files or "session_id" not in request.form:
@@ -774,7 +1259,10 @@ def process_completed_file_route():
             strategy_used=strategy,
         )
 
-        session_data = processor.sessions.get(session_id, {})
+        # Récupérer les données depuis les services
+        session_data = session_service.get_session_data(session_id)
+        if not session_data:
+            return jsonify({"error": "Session non trouvée"}), 404
 
         return jsonify(
             {
@@ -797,6 +1285,7 @@ def process_completed_file_route():
 
 
 @app.route("/api/download/<file_type>/<session_id>", methods=["GET"])
+@handle_api_errors("file_download")
 def download_file(file_type: str, session_id: str):
     """Endpoint de téléchargement amélioré"""
     try:
@@ -861,9 +1350,8 @@ def delete_session(session_id: str):
     try:
         success = session_service.delete_session(session_id)
         if success:
-            # Nettoyer aussi la compatibilité temporaire
-            if session_id in processor.sessions:
-                del processor.sessions[session_id]
+            # Nettoyer les données de session
+            session_service.cleanup_session_data(session_id)
             return jsonify({"success": True})
         else:
             return jsonify({"error": "Session non trouvée"}), 404
@@ -988,6 +1476,156 @@ def archive_session(session_id: str):
         logger.error(f"Erreur archivage session {session_id}: {e}")
         return jsonify({"error": "Erreur interne du serveur"}), 500
 
+
+@app.route("/api/verify/<session_id>", methods=["GET"])
+@handle_api_errors("file_verification")
+def verify_final_file(session_id: str):
+    """Endpoint pour vérifier en détail le fichier final d'une session"""
+    try:
+        # Récupérer les données de session
+        session_data = session_service.get_session_data(session_id)
+        if not session_data:
+            return jsonify({"error": "Session non trouvée"}), 404
+        
+        final_file_path = session_data.get("final_file_path")
+        if not final_file_path:
+            return jsonify({"error": "Aucun fichier final généré pour cette session"}), 404
+        
+        # Effectuer la vérification détaillée
+        verification_summary = processor._verify_final_file_with_summary(final_file_path)
+        
+        # Ajouter des métadonnées de session
+        verification_summary["session_info"] = {
+            "session_id": session_id,
+            "original_filename": session_data.get("original_filename"),
+            "status": session_data.get("status"),
+            "created_at": session_data.get("created_at"),
+            "strategy_used": session_data.get("strategy_used", "FIFO")
+        }
+        
+        return jsonify({
+            "success": True,
+            "verification": verification_summary
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur vérification session {session_id}: {e}")
+        return jsonify({"error": "Erreur lors de la vérification"}), 500
+
+@app.route("/api/verify-quantities/<session_id>", methods=["GET"])
+@handle_api_errors("quantities_verification")
+def verify_quantities_consistency(session_id: str):
+    """Endpoint pour vérifier spécifiquement la cohérence des quantités"""
+    try:
+        # Récupérer les données de session
+        session_data = session_service.get_session_data(session_id)
+        if not session_data:
+            return jsonify({"error": "Session non trouvée"}), 404
+        
+        final_file_path = session_data.get("final_file_path")
+        if not final_file_path:
+            return jsonify({"error": "Aucun fichier final généré pour cette session"}), 404
+        
+        # Charger les DataFrames nécessaires
+        completed_df = session_service.load_dataframe(session_id, "completed_df")
+        distributed_df = session_service.load_dataframe(session_id, "distributed_df")
+        
+        if completed_df is None or distributed_df is None:
+            return jsonify({"error": "Données de traitement manquantes"}), 404
+        
+        # Effectuer la vérification des quantités
+        quantities_verification = processor._verify_quantities_consistency(
+            final_file_path, completed_df, distributed_df
+        )
+        
+        return jsonify({
+            "success": True,
+            "session_id": session_id,
+            "quantities_verification": quantities_verification,
+            "message": "Vérification des quantités terminée"
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur vérification quantités session {session_id}: {e}")
+        return jsonify({"error": "Erreur lors de la vérification des quantités"}), 500
+
+@app.route("/api/stats/sessions", methods=["GET"])
+@handle_api_errors("session_stats")
+def get_session_stats():
+    """Retourne les statistiques détaillées de toutes les sessions"""
+    try:
+        # Récupérer toutes les sessions
+        sessions = session_service.list_sessions(limit=100, include_expired=True)
+        
+        # Calculer les statistiques globales
+        stats = {
+            "total_sessions": len(sessions),
+            "sessions_by_status": {},
+            "total_files_processed": 0,
+            "total_articles_processed": 0,
+            "total_quantity_processed": 0,
+            "total_discrepancies": 0,
+            "sessions_with_lotecart": 0,
+            "strategies_used": {},
+            "recent_sessions": [],
+            "processing_times": {
+                "last_24h": 0,
+                "last_7d": 0,
+                "last_30d": 0
+            }
+        }
+        
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        
+        for session in sessions:
+            # Compter par statut
+            status = session.get("status", "unknown")
+            stats["sessions_by_status"][status] = stats["sessions_by_status"].get(status, 0) + 1
+            
+            # Accumuler les totaux
+            session_stats = session.get("stats", {})
+            stats["total_articles_processed"] += session_stats.get("nb_articles", 0)
+            stats["total_quantity_processed"] += session_stats.get("total_quantity", 0)
+            stats["total_discrepancies"] += session_stats.get("total_discrepancy", 0)
+            
+            # Compter les stratégies
+            strategy = session_stats.get("strategy_used", "unknown")
+            stats["strategies_used"][strategy] = stats["strategies_used"].get(strategy, 0) + 1
+            
+            # Sessions récentes (dernières 10)
+            if len(stats["recent_sessions"]) < 10:
+                stats["recent_sessions"].append({
+                    "id": session["id"],
+                    "filename": session.get("original_filename", "N/A"),
+                    "status": status,
+                    "created_at": session.get("created_at"),
+                    "articles": session_stats.get("nb_articles", 0),
+                    "discrepancy": session_stats.get("total_discrepancy", 0)
+                })
+            
+            # Compter par période
+            if session.get("created_at"):
+                try:
+                    created_at = datetime.fromisoformat(session["created_at"].replace('Z', '+00:00'))
+                    if created_at > now - timedelta(hours=24):
+                        stats["processing_times"]["last_24h"] += 1
+                    if created_at > now - timedelta(days=7):
+                        stats["processing_times"]["last_7d"] += 1
+                    if created_at > now - timedelta(days=30):
+                        stats["processing_times"]["last_30d"] += 1
+                except:
+                    pass
+        
+        return jsonify({
+            "success": True,
+            "stats": stats,
+            "generated_at": now.isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération stats sessions: {e}")
+        return jsonify({"error": "Erreur interne du serveur"}), 500
 
 @app.route("/api/stats/files", methods=["GET"])
 def get_file_stats():

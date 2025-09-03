@@ -22,11 +22,13 @@ class Config:
     SECRET_KEY: str = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
     ALLOWED_EXTENSIONS: set = {'.csv', '.xlsx', '.xls'}
     
-    # Configuration Sage X3 (externalisée)
+    # Configuration Sage X3 (externalisée vers YAML)
+    # Ces valeurs sont maintenant dans config/sage_mappings.yaml
+    # Conservées ici pour compatibilité avec l'ancien code
     SAGE_COLUMNS: Dict[str, int] = {
         'QUANTITE': int(os.getenv('SAGE_COL_QUANTITE', '5')),
-        'CODE_ARTICLE': int(os.getenv('SAGE_COL_CODE_ARTICLE', '7')),
-        'NUMERO_LOT': int(os.getenv('SAGE_COL_NUMERO_LOT', '13')),
+        'CODE_ARTICLE': int(os.getenv('SAGE_COL_CODE_ARTICLE', '8')),  # Corrigé: 8 au lieu de 7
+        'NUMERO_LOT': int(os.getenv('SAGE_COL_NUMERO_LOT', '14')),     # Corrigé: 14 au lieu de 13
         'NUMERO_SESSION': int(os.getenv('SAGE_COL_NUMERO_SESSION', '1')),
         'NUMERO_INVENTAIRE': int(os.getenv('SAGE_COL_NUMERO_INVENTAIRE', '2')),
         'SITE': int(os.getenv('SAGE_COL_SITE', '4')),
