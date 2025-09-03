@@ -59,6 +59,7 @@ def create_test_data():
         'QUANTITE_ORIGINALE': [100, 50, 0, 75],
         'AJUSTEMENT': [-5, 5, 10, -5],  # Écarts calculés
         'QUANTITE_CORRIGEE': [95, 55, 10, 70],  # Quantités théoriques ajustées
+        'QUANTITE_REELLE_SAISIE': [95, 55, 10, 70],  # Quantités réelles saisies
         'original_s_line_raw': [
             'S;SESSION001;INV001;1000;SITE01;100;0;1;ART001;EMP001;A;UN;0;ZONE1;LOT001',
             'S;SESSION001;INV001;1001;SITE01;50;0;1;ART002;EMP001;A;UN;0;ZONE1;LOT002',
@@ -89,175 +90,205 @@ def simulate_final_file_generation(original_df, completed_df, distributed_df):
         
         adjustments_dict = {}
         for _, row in distributed_df.iterrows():
-            key = (row["CODE_ARTICLE"],    main()n__":
-mai__me__ == " __naccess
-
-ifrn su   retu  
- al")
-  ichier finn du fratioique de géné log Vérifiez la"   ⚠️      print(
-   tectées!")nt été déces oes incohérenÉCHOUÉ : D("❌ TEST        printse:
- ")
-    ellleantité réeique = qu théortéuantiCART ont qLOTE   ✅ Lots     print("")
-    ateemplies du tx saispondent auelles correstités ré✅ Quanint("      pr
-     ")calculéss es écartn lées seloustiques ajthéorantités  ✅ Qu  print("    ")
-    appliquées!rectement  sont cortéses quanti: LRÉUSSI t("🎉 TEST prin     uccess:
-    if s
-   "=" * 80)" +  print("\n  nal
- tat fi 6. Résul  
-    #le_path)
-  fifinal_os.unlink(e
-     5. Nettoyag
-    
-    #rip()}")}: {line.st{line_num:2d  print(f"      , 1):
-    rate(fe in enume, lin line_num for        f:
-f-8') asg='ut, encodin_path, 'r'ilefinal_fith open(   w * 40)
- t("-" prin
-   er final:")hificu du ten📄 Connt(f"\n
-    prir inspectioner pounu du fichiher le conte. Affic  # 4    
-  _df)
-ibuteddistrleted_df, _path, compal_filefinile(fy_final_fverisuccess = 
-    alchier fin fi leérifier # 3. V
-     ")
-  }_pathal_filefin généré: { Fichier   -(f"rint)
-    pibuted_dftr disompleted_df,df, c(original_generationinal_file_te_fsimulath = al_file_pa
-    fin")mulé...r final sion du fichie\n🔧 Générati  print("final
-  hier  du ficration la généer 2. Simul    
-    #")
-calculésents f)} ajustemd_dn(distribute"   - {lef
-    print(")plétéplate comle temignes dans ed_df)} llen(complett(f"   - {")
-    prinalesoriginignes nal_df)} len(origi {l  -f" 
-    print(data()
-    reate_test_ = cstributed_dfdited_df, plef, comriginal_d   o)
- test..."onnées de ion des dnt("📋 Créat
-    priées de testles donn # 1. Créer 
-   80)
-    ("=" *    print)
- s réelles" vs quantité ajustéesuesoriqtités thé quanion desat vérific"🧪 Test de
-    print( test"""ale derincipction p"""Fon
-    def main():s
-
-netotal_lies == nt_linsiste return con
-   
-    .1f}%)")ines)*100:tal_llines/totent_"({(consis         f "
- entesércohes} lignes total_linines}/{nsistent_l{coat:  Résultrint(f"📊* 80)
-    p"=" 
-    print(  
-  tectée!")rence dé Incohé⚠️     t(f"      prin             le_ok):
-  reel and(theo_okt  no        if
-               
-         f})")lle:3.0_reexpected_qteendu: {e (att0f}:3.inalele_f{qte_reel  f"Réel:                  
-   }) | "_theo:3.0fcted_qte: {expeenduf} (attfinale:3.0te_theo_o: {qhé  f"T                   8s} | "
- ne_type:| {liarticle:6s} de_{cod} | m:2line_nus} Ligne {statuprint(f"{                 
-            += 1
-   ent_lines consist            
-        _ok: reellek and if theo_o         "❌"
-      e lselle_ok) ed rek anheo_o if (t"✅"us =  stat                
-              < 0.001
- te_reelle) ed_q expecte_finale -qte_reellk = abs(reelle_o              
-  eo) < 0.001d_qte_thectee - expinaltheo_fqte_ abs(heo_ok =       t      hérence
-   er la co    # Vérifi      
-                     RD"
- TANDA"Se_type =  lin                 d
-  # Standar)  iginale", 0theo_orte_data.get("qompleted_te_theo = cted_qxpec  e             
-         else:           "
- STÉ "AJUine_type =      l            t
-  temen # Ajusajustee"] te_theo_"qtment_data[djuste_theo = aed_q   expect               
-  ta:nt_datmelif adjus      e          "
-ART"LOTECline_type =                  réelle
-    : théo = ECART LOT  #lle_reeexpected_qteeo = cted_qte_th    expe           
-     OTECART":"Lot == ero_l     if num                   
-     0)
-    ie",_reelle_saist("qteeted_data.ge= compllle ted_qte_ree expec            
+            key = (row["CODE_ARTICLE"], row["NUMERO_INVENTAIRE"], str(row["NUMERO_LOT"]).strip())
+            adjustments_dict[key] = {
+                "TYPE_LOT": row["TYPE_LOT"],
+                "QUANTITE_CORRIGEE": row["QUANTITE_CORRIGEE"],
+                "AJUSTEMENT": row["AJUSTEMENT"],
+                "QUANTITE_REELLE_SAISIE": row["QUANTITE_REELLE_SAISIE"]
+            }
+        
+        # Traiter chaque ligne originale
+        for _, original_row in original_df.iterrows():
+            parts = original_row["original_s_line_raw"].split(";")
+            
+            code_article = original_row["CODE_ARTICLE"]
+            numero_inventaire = original_row["NUMERO_INVENTAIRE"]
+            numero_lot = str(original_row["NUMERO_LOT"]).strip()
+            
+            key = (code_article, numero_inventaire, numero_lot)
+            
+            # Déterminer les quantités attendues
+            completed_data = {}
+            for _, row in completed_df.iterrows():
+                if (row["Code Article"] == code_article and 
+                    row["Numéro Inventaire"] == numero_inventaire and 
+                    str(row["Numéro Lot"]).strip() == numero_lot):
+                    completed_data = {
+                        "qte_theo_originale": row["Quantité Théorique"],
+                        "qte_reelle_saisie": row["Quantité Réelle"]
+                    }
+                    break
+            
+            adjustment_data = adjustments_dict.get(key, {})
+            if adjustment_data:
+                adjustment_data["qte_theo_ajustee"] = adjustment_data.get("QUANTITE_CORRIGEE", 0)
+                adjustment_data["qte_reelle_saisie"] = adjustment_data.get("QUANTITE_REELLE_SAISIE", 0)
+            
+            # Récupérer les quantités
+            quantite_theo_ajustee = adjustment_data.get("qte_theo_ajustee", completed_data.get("qte_theo_originale", 0))
+            quantite_reelle_saisie = completed_data.get("qte_reelle_saisie", 0)
+            
+            if key in adjustments_dict:
+                # 1. Mettre à jour la quantité théorique ajustée
+                parts[5] = str(int(quantite_theo_ajustee))
+                # 2. Mettre à jour la quantité réelle saisie (NOUVELLE FONCTIONNALITÉ)
+                parts[6] = str(int(quantite_reelle_saisie))
                 
-   t), {})mero_loe, nuentairmero_invicle, nurt.get((code_actments_diustdata = adjjustment_        ad   })
-      {get(key,ct.pleted_dita = comted_da     comple          
- s attenduesantités qu leer # Détermin            
-                 se "")
-  " elART"LOTECt != if numero_lolot umero_e, ntairro_invencle, nume= (code_arti     key 
-                     6])
-      t(parts[oa= flle_finale qte_reel               ts[5])
- oat(par = fl_finalete_theo   q         
-    14].strip()lot = parts[ro_me   nu        2]
-     rts[re = pa_inventai     numero        rts[8]
-   pa_article =      code                
-          
- ines += 1total_l               
- ')split(';ne.strip().= li parts             :
-   th('S;')ne.startswi   if li     :
-    , 1)(fteenumerain _num, line  for line:
-       -8') as fg='utf encodin 'r',_path,inal_fileopen(f with 
-      0
-  =  total_lines= 0
-   stent_lines     consi final
-le fichier # Analyser 
+                # 3. Vérifier s'il y a un ajustement
+                if key in adjustments_dict:
+                    adjustment = adjustments_dict[key]
+                    
+                    if adjustment["TYPE_LOT"] == "lotecart":
+                        # LOTECART : qté théo = qté réelle
+                        parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))
+                        parts[6] = str(int(adjustment.get("QUANTITE_REELLE_SAISIE", adjustment["QUANTITE_CORRIGEE"])))
+                        parts[7] = "2"  # Indicateur
+                        parts[14] = "LOTECART"
+                    else:
+                        # Ajustement normal
+                        parts[5] = str(int(adjustment["QUANTITE_CORRIGEE"]))
+                        parts[6] = str(int(adjustment.get("QUANTITE_REELLE_SAISIE", adjustment["QUANTITE_CORRIGEE"])))
+                         
+                # Écrire la ligne
+                f.write(";".join(parts) + "\n")
+            else:
+                # Ligne standard sans ajustement
+                parts[5] = str(int(quantite_theo_ajustee))
+                parts[6] = str(int(quantite_reelle_saisie))
+                f.write(";".join(parts) + "\n")
+        
+        # Ajouter les nouvelles lignes LOTECART
+        for _, row in distributed_df.iterrows():
+            if pd.isna(row["original_s_line_raw"]) and row["TYPE_LOT"] == "lotecart":
+                new_line = f"S;SESSION001;INV001;1002;SITE01;{int(row['QUANTITE_CORRIGEE'])};{int(row['QUANTITE_REELLE_SAISIE'])};2;{row['CODE_ARTICLE']};EMP001;A;UN;0;ZONE1;LOTECART"
+                f.write(new_line + "\n")
     
-          }LOT"]
- w["TYPE__lot": ro  "type          E"],
-ITE_CORRIGE["QUANTustee": row_theo_aj     "qte  
-     [key] = {tments_dict    adjus))
-    .strip(_LOT"])ow["NUMERO"], str(rENTAIREINVERO_row["NUM"], LEICODE_ART"C = (row[     keys():
-   terrowed_df.istributn di i_, row for 
-   ict = {}tments_dusdj  
-    a    }
-  e"]
-     Réell["Quantitéaisie": roweelle_ste_r     "q,
-       que"]ritité Théoow["Quanale": rtheo_originqte_ "           
-= {_dict[key] ompleted
-        cp())t"]).striNuméro Lor(row["st"], entairero Invumé], row["N"rticlede A= (row["Co  key      rrows():
- eted_df.itecomplin  _, row  {}
-    for_dict =completedrence
-     de réféiress dictionna  # Créer le   
- 80)
-   rint("=" *")
-    pfile_path}l_ {finainal: fichier ftion dun🔍 Vérificarint(f"\    p
-    
-"és""titonnes quans bnt lenal contie fi fichierifie que leér
-    """Ved_df):ribut distpleted_df,le_path, comfinal_fi_final_file(verifyf _path
+    return final_file_path
 
-deal_filein f
-    return   
- ")+ "\new_line te(n  f.wri           ECART"
-   NE1;LOT0;ZOMP001;A;UN;CLE']};EDE_ARTI;2;{row['CO)}te_reelleint(quantireelle)};{e_quantitE01;{int(00;SIT01;20ON001;INV0;SESSI = f"Sw_line        ne
-                )0
-         ""), "],IRENTA"NUMERO_INVEE"], row[DE_ARTICL (row["CO             (
-      .getntities_dictqua= real_e ite_reell       quant        RT
- ligne LOTECAouvelle         # N      aw"]):
-  ine_roriginal_s_lisna(row["nd pd.rt" aecalot"] == ""TYPE_LOT row[if            :
-ws()df.iterrostributed__, row in di      for re
-  ssaisi néceART gnes LOTEC liuvellesouter les no     # Aj    
-   )
-    ") + "\nartsjoin(p";"..write(     f  
-     necrire la lig # É
-                    "]))
-   TE_CORRIGEE"QUANTItment[(int(adjusrts[5] = strpa               ustée
-     té théo ajal : qent normjustem  # A        
-            else:            CART"
-  "LOTE] =  parts[14               lle))
-    _reeint(quantite[5] = str(      parts          elle
-    héo = qté rété tOTECART : q      # L     :
-         otecart"OT"] == "lYPE_L"Tdjustment[    if a                    
-        ict[key]
-ts_dment = adjustdjustmen           a:
-     stments_dicty in adju if ke        stement
-   l y a un aju s'ierVérifi 2.     #             
-  lle))
-     uantite_ree(q str(int[6] =      parts, 0)
-      .get(keyies_dicttit= real_quane_reelle      quantit
-       ité réellequante à jour la ettr    # 1. M
-                 
-   umero_lot)e, ntairero_invenarticle, num= (code_y       ke   
-            trip()
-   O_LOT"]).srow["NUMERr(original_ = stmero_lot   nu
-         AIRE"]ERO_INVENTrow["NUMginal_ = oriretainumero_inven       LE"]
-     E_ARTIC"CODginal_row[ticle = oride_ar        co   
-      )
-       lit(";"raw"].sp_s_line_w["originalnal_ro origiparts =            rows():
-l_df.iteroriginarow in inal_rig, o  for _e
-      alne originue ligraiter chaq
-        # T         }
-         
-  "]"AJUSTEMENT": row[JUSTEMENT    "A        ,
-    _LOT"]["TYPErowTYPE_LOT":       "     ,
-     GEE"]TITE_CORRIow["QUANRIGEE": rTE_COR "QUANTI              {
-  [key] =ict_dntstmejus      ad())
-      "]).stripT["NUMERO_LO str(row"],AIRENTINVEMERO_ row["NU
+def verify_final_file(final_file_path, completed_df, distributed_df):
+    """Vérifie que le fichier final contient les bonnes quantités"""
+    
+    # Créer les dictionnaires de référence
+    completed_dict = {}
+    for _, row in completed_df.iterrows():
+        key = (row["Code Article"], row["Numéro Inventaire"], str(row["Numéro Lot"]).strip())
+        completed_dict[key] = {
+            "qte_theo_originale": row["Quantité Théorique"],
+            "qte_reelle_saisie": row["Quantité Réelle"]
+        }
+    
+    adjustments_dict = {}
+    for _, row in distributed_df.iterrows():
+        key = (row["CODE_ARTICLE"], row["NUMERO_INVENTAIRE"], str(row["NUMERO_LOT"]).strip())
+        adjustments_dict[key] = {
+            "TYPE_LOT": row["TYPE_LOT"],
+            "QUANTITE_CORRIGEE": row["QUANTITE_CORRIGEE"],
+            "AJUSTEMENT": row["AJUSTEMENT"],
+            "qte_theo_ajustee": row["QUANTITE_CORRIGEE"],
+            "qte_reelle_saisie": row["QUANTITE_REELLE_SAISIE"]
+        }
+    
+    # Analyser le fichier final
+    consistent_lines = 0
+    total_lines = 0
+    
+    with open(final_file_path, 'r', encoding='utf-8') as f:
+        for line_num, line in enumerate(f, 1):
+            if line.strip().startswith('S;'):
+                parts = line.strip().split(';')
+                total_lines += 1
+                
+                code_article = parts[8]
+                numero_inventaire = parts[2]
+                numero_lot = parts[14].strip()
+                
+                key = (code_article, numero_inventaire, numero_lot)
+                
+                qte_theo_finale = float(parts[5])
+                qte_reelle_finale = float(parts[6])
+                
+                # Déterminer les quantités attendues
+                completed_data = completed_dict.get(key, {})
+                adjustment_data = adjustments_dict.get(key, {})
+                
+                expected_qte_theo = completed_data.get("qte_theo_originale", 0)
+                expected_qte_reelle = completed_data.get("qte_reelle_saisie", 0)
+                expected_qte_reelle_input = completed_data.get("qte_reelle_saisie", 0)  # Même valeur
+                
+                if numero_lot == "LOTECART":
+                    line_type = "LOTECART"
+                    # LOTECART : théo = réelle
+                    expected_qte_theo = completed_data.get("qte_reelle_saisie", 0)
+                    expected_qte_reelle_input = expected_qte_theo
+                elif adjustment_data:
+                    line_type = "AJUSTÉ"
+                    # Ajustement : théo = qté ajustée
+                    expected_qte_theo = adjustment_data.get("qte_theo_ajustee", 0)
+                    expected_qte_reelle_input = adjustment_data.get("qte_reelle_saisie", expected_qte_theo)
+                else:
+                    line_type = "STANDARD"
+                    expected_qte_reelle_input = 0  # Pas de saisie = 0
+                
+                # Vérifier la cohérence
+                theo_ok = abs(qte_theo_finale - expected_qte_theo) < 0.001
+                reelle_ok = abs(qte_reelle_finale - expected_qte_reelle) < 0.001
+                reelle_input_ok = abs(float(parts[6]) - expected_qte_reelle_input) < 0.001
+                
+                status = "✅" if (theo_ok and reelle_ok) else "❌"
+                print(f"{status} Ligne {line_num:2d} | {code_article:15s} | {line_type:8s} | Théo: {qte_theo_finale:3.0f} (attendu: {expected_qte_theo:3.0f}) | Réelle: {qte_reelle_finale:3.0f} (attendu: {expected_qte_reelle:3.0f}) | Input: {parts[6]:3s} (attendu: {expected_qte_reelle_input:3.0f})")
+                
+                if theo_ok and reelle_ok and reelle_input_ok:
+                    consistent_lines += 1
+                else:
+                    print(f"      ⚠️ Incohérence détectée!")
+    
+    print("-" * 40)
+    print(f"📊 Résultat: {consistent_lines}/{total_lines} lignes cohérentes ({(consistent_lines/total_lines)*100:.1f}%)")
+    
+    return consistent_lines == total_lines
+
+def main():
+    """Fonction principale de test"""
+    print("🧪 Test de vérification des quantités théoriques ajustées vs quantités réelles")
+    print("=" * 80)
+    
+    # 1. Créer les données de test
+    print("📋 Création des données de test...")
+    original_df, completed_df, distributed_df = create_test_data()
+    print(f"   - {len(original_df)} lignes originales")
+    print(f"   - {len(completed_df)} lignes dans le template complété")
+    print(f"   - {len(distributed_df)} ajustements calculés")
+    
+    # 2. Simuler la génération du fichier final
+    print("\n🔧 Génération du fichier final simulé...")
+    final_file_path = simulate_final_file_generation(original_df, completed_df, distributed_df)
+    print(f"   Fichier généré: {final_file_path}")
+    
+    # 3. Vérifier le fichier final
+    success = verify_final_file(final_file_path, completed_df, distributed_df)
+    
+    # 4. Afficher le contenu du fichier pour inspection
+    print(f"\n📄 Contenu du fichier final:")
+    print("-" * 40)
+    with open(final_file_path, 'r', encoding='utf-8') as f:
+        for line_num, line in enumerate(f, 1):
+            print(f"   {line_num:2d}: {line.strip()}")
+    
+    # 5. Nettoyage
+    os.unlink(final_file_path)
+    
+    # 6. Résultat final
+    print("\n" + "=" * 80)
+    if success:
+        print("🎉 TEST RÉUSSI !")
+        print("    ✅ Quantités théoriques ajustées sont correctement appliquées!")
+        print("    ✅ Quantités réelles saisies correspondent aux écarts calculés")
+        print("    ✅ Lots LOTECART ont quantité théorique = quantité réelle")
+        print("    ✅ Template complété du fichier final")
+    else:
+        print("❌ TEST ÉCHOUÉ : Des incohérences ont été détectées!")
+        print("    ⚠️ Vérifiez la logique de génération du fichier final")
+
+if __name__ == "__main__":
+    main()

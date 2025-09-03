@@ -74,18 +74,20 @@ def test_lotecart_processing():
                     if len(parts) > 14:
                         article = parts[8] if len(parts) > 8 else 'N/A'
                         quantite = parts[5] if len(parts) > 5 else 'N/A'
+                        quantite_reelle_input = parts[6] if len(parts) > 6 else 'N/A'
                         indicateur = parts[7] if len(parts) > 7 else 'N/A'
                         lotecart_lines.append({
                             'ligne': i+1,
                             'article': article,
                             'quantite': quantite,
+                            'quantite_reelle_input': quantite_reelle_input,
                             'indicateur_compte': indicateur
                         })
         
         print(f"✅ {len(lotecart_lines)} lignes LOTECART dans le fichier final:")
         for line_info in lotecart_lines:
             status = "✅" if line_info['indicateur_compte'] == '2' else "❌"
-            print(f"   {status} Ligne {line_info['ligne']}: {line_info['article']} - Qté={line_info['quantite']} - Indicateur={line_info['indicateur_compte']}")
+            print(f"   {status} Ligne {line_info['ligne']}: {line_info['article']} - Qté Théo={line_info['quantite']} - Qté Réelle={line_info['quantite_reelle_input']} - Indicateur={line_info['indicateur_compte']}")
         
         # 4. Vérification des lignes originales avec quantité théorique 0
         print("\n4. Vérification des lignes originales avec quantité théorique 0...")
@@ -99,6 +101,7 @@ def test_lotecart_processing():
                     if len(parts) > 8:
                         article = parts[8]
                         quantite = parts[5]
+                        quantite_reelle_input = parts[6] if len(parts) > 6 else 'N/A'
                         indicateur = parts[7] if len(parts) > 7 else 'N/A'
                         
                         # Vérifier si c'est un des articles candidats LOTECART
@@ -108,6 +111,7 @@ def test_lotecart_processing():
                                     'ligne': i+1,
                                     'article': article,
                                     'quantite': quantite,
+                                    'quantite_reelle_input': quantite_reelle_input,
                                     'indicateur_compte': indicateur
                                 })
                                 break
@@ -115,7 +119,7 @@ def test_lotecart_processing():
         print(f"✅ {len(zero_qty_lines)} lignes originales avec quantité théorique 0:")
         for line_info in zero_qty_lines:
             status = "✅" if line_info['indicateur_compte'] == '2' else "❌"
-            print(f"   {status} Ligne {line_info['ligne']}: {line_info['article']} - Qté={line_info['quantite']} - Indicateur={line_info['indicateur_compte']}")
+            print(f"   {status} Ligne {line_info['ligne']}: {line_info['article']} - Qté Théo={line_info['quantite']} - Qté Réelle={line_info['quantite_reelle_input']} - Indicateur={line_info['indicateur_compte']}")
         
         # 5. Résumé
         print("\n=== RÉSUMÉ ===")

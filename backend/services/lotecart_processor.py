@@ -212,11 +212,12 @@ class LotecartProcessor:
                 
                 # Récupérer les quantités
                 quantite_reelle = adjustment.get("QUANTITE_REELLE", adjustment["QUANTITE_CORRIGEE"])
+                quantite_reelle_saisie = adjustment.get("QUANTITE_REELLE_SAISIE", quantite_reelle)
                 
                 # Modifications spécifiques LOTECART
                 new_parts[3] = str(current_line_number)  # RANG - nouveau numéro
                 new_parts[5] = str(int(quantite_reelle))  # QUANTITE théorique = quantité réelle pour LOTECART
-                new_parts[6] = str(int(quantite_reelle))  # QUANTITE_REELLE_IN_INPUT = quantité réelle saisie
+                new_parts[6] = str(int(quantite_reelle_saisie))  # QUANTITE_REELLE_IN_INPUT = quantité réelle saisie
                 new_parts[7] = "2"  # INDICATEUR_COMPTE - toujours 2 pour LOTECART
                 new_parts[14] = "LOTECART"  # NUMERO_LOT - identifiant spécial
                 

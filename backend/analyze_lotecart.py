@@ -42,6 +42,7 @@ def analyze_lotecart_files():
                     if len(parts) > 14:
                         article = parts[8]
                         quantite = parts[5]
+                        quantite_reelle_input = parts[6] if len(parts) > 6 else '0'
                         indicateur = parts[7]
                         numero_lot = parts[14]
                         
@@ -50,6 +51,7 @@ def analyze_lotecart_files():
                                 'ligne': i+1,
                                 'article': article,
                                 'quantite': quantite,
+                                'quantite_reelle_input': quantite_reelle_input,
                                 'indicateur': indicateur,
                                 'lot': numero_lot
                             })
@@ -58,6 +60,7 @@ def analyze_lotecart_files():
                                 'ligne': i+1,
                                 'article': article,
                                 'quantite': quantite,
+                                'quantite_reelle_input': quantite_reelle_input,
                                 'indicateur': indicateur,
                                 'lot': numero_lot
                             })
@@ -65,12 +68,12 @@ def analyze_lotecart_files():
         print(f"✅ {len(lotecart_lines)} lignes LOTECART trouvées:")
         for line in lotecart_lines:
             status = "✅" if line['indicateur'] == '2' else "❌"
-            print(f"   {status} {line['article']}: Qté={line['quantite']}, Indicateur={line['indicateur']}, Lot={line['lot']}")
+            print(f"   {status} {line['article']}: Qté Théo={line['quantite']}, Qté Réelle Input={line['quantite_reelle_input']}, Indicateur={line['indicateur']}, Lot={line['lot']}")
         
         print(f"\n✅ {len(original_lines)} lignes originales des articles LOTECART:")
         for line in original_lines:
             status = "✅" if line['indicateur'] == '2' else "❌"
-            print(f"   {status} {line['article']}: Qté={line['quantite']}, Indicateur={line['indicateur']}, Lot={line['lot']}")
+            print(f"   {status} {line['article']}: Qté Théo={line['quantite']}, Qté Réelle Input={line['quantite_reelle_input']}, Indicateur={line['indicateur']}, Lot={line['lot']}")
         
         # 3. Vérification globale
         print("\n=== VÉRIFICATION ===")

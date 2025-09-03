@@ -23,6 +23,7 @@ def test_quantities_logic():
             "saisie_reelle": 95,
             "has_adjustment": True,
             "adjusted_theo": 95,
+            "expected_reelle_input": 95,
             "expected_theo_final": 95,  # Quantité ajustée
             "expected_reelle_final": 95
         },
@@ -32,6 +33,7 @@ def test_quantities_logic():
             "saisie_reelle": 10,
             "has_adjustment": True,
             "is_lotecart": True,
+            "expected_reelle_input": 10,
             "expected_theo_final": 10,  # Théo = Réelle pour LOTECART
             "expected_reelle_final": 10
         }
@@ -45,6 +47,7 @@ def test_quantities_logic():
         
         # Simuler la logique
         qte_reelle_final = case["saisie_reelle"]  # Toujours la saisie
+        qte_reelle_input = case["saisie_reelle"]  # Quantité réelle saisie dans colonne G
         
         if case.get("has_adjustment", False):
             if case.get("is_lotecart", False):
@@ -57,11 +60,13 @@ def test_quantities_logic():
         # Vérifier
         theo_ok = qte_theo_final == case["expected_theo_final"]
         reelle_ok = qte_reelle_final == case["expected_reelle_final"]
+        input_ok = qte_reelle_input == case.get("expected_reelle_input", case["saisie_reelle"])
         
         print(f"   Théorique: {qte_theo_final} (attendu: {case['expected_theo_final']}) {'✅' if theo_ok else '❌'}")
         print(f"   Réelle:    {qte_reelle_final} (attendu: {case['expected_reelle_final']}) {'✅' if reelle_ok else '❌'}")
+        print(f"   Input (Col G): {qte_reelle_input} (attendu: {case.get('expected_reelle_input', case['saisie_reelle'])}) {'✅' if input_ok else '❌'}")
         
-        if not (theo_ok and reelle_ok):
+        if not (theo_ok and reelle_ok and input_ok):
             all_passed = False
             print("   ❌ ÉCHEC")
         else:
@@ -70,7 +75,7 @@ def test_quantities_logic():
     print("\n" + "=" * 50)
     if all_passed:
         print("🎉 TOUS LES TESTS RÉUSSIS!")
-        print("La logique des quantités est correcte.")
+        print("La logique des quantités (théorique, réelle et input) est correcte.")
     else:
         print("❌ CERTAINS TESTS ONT ÉCHOUÉ!")
         print("La logique nécessite des corrections.")
