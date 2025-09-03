@@ -56,6 +56,12 @@ Le frontend est la **vitrine** de l’application. Les améliorations ci-dessous
     `→ Validation`, `→ Agrégation`, `→ Calcul d’écarts`, etc.
   - **Barres de progression**, **icônes animées**
 
+### 📋 2. Amélioration de la Traçabilité *(IMPLÉMENTÉ)*
+
+- **✅ TERMINÉ :** Les quantités réelles saisies sont maintenant conservées dans la colonne G du fichier final
+- **Bénéfice :** Traçabilité complète des saisies d'inventaire dans le fichier Sage X3
+- **Impact :** Permet de vérifier les quantités saisies directement dans le système Sage X3
+
 ### 📋 2. Gestion Visuelle des Sessions
 
 - **Tableau de bord des sessions** :

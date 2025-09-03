@@ -16,6 +16,7 @@
 | **Types de Lots Avancés** | Reconnaissance de 3 types de numéros de lot avec priorités | RegEx, Python |
 | **Calcul Automatique** | Détection des écarts entre stocks théoriques/réels | NumPy, Pandas |
 | **Répartition Intelligente** | Distribution FIFO/LIFO avec priorité sur les types de lots | Python, Pandas |
+| **Traçabilité Complète** | Conservation des quantités réelles saisies dans le fichier final | Python, Pandas |
 | **API RESTful** | Interface moderne pour intégration | Flask, CORS |
 | **Gestion de Sessions** | Suivi complet des opérations | Python, Logging |
 
@@ -50,6 +51,21 @@ python app.py
 ```
 
 ## 📚 Utilisation
+
+### Structure du Fichier Final
+
+Le fichier CSV final généré contient les quantités réelles saisies dans la **colonne G** (`QUANTITE_REELLE_IN_INPUT`), permettant une traçabilité complète :
+
+- **Colonne F** : Quantité théorique ajustée (après calcul des écarts)
+- **Colonne G** : Quantité réelle saisie lors de l'inventaire (**NOUVELLE FONCTIONNALITÉ**)
+- **Colonne H** : Indicateur de compte (1=normal, 2=ajusté)
+
+```csv
+S;SESSION;INV001;1000;SITE01;95;95;2;ART001;EMP001;A;UN;0;ZONE1;LOT001
+#                        ↑  ↑  ↑
+#                        F  G  H
+#                     Théo Réel Ind
+```
 
 ### Types de Numéros de Lot Supportés
 
