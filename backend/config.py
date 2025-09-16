@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Any
 
 @dataclass
@@ -19,20 +19,20 @@ class Config:
     SESSION_TIMEOUT: int = int(os.getenv('SESSION_TIMEOUT', 3600))  # 1 heure
     
     # Sécurité
-    SECRET_KEY: str = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
-    ALLOWED_EXTENSIONS: set = {'.csv', '.xlsx', '.xls'}
+    SECRET_KEY: str = os.getenv('SECRET_KEY', 'une-cle-secrete-vraiment-aleatoire-et-difficile-a-deviner')
+    ALLOWED_EXTENSIONS: set = field(default_factory=lambda: {'.csv', '.xlsx', '.xls'})
     
     # Configuration Sage X3 (externalisée vers YAML)
     # Ces valeurs sont maintenant dans config/sage_mappings.yaml
     # Conservées ici pour compatibilité avec l'ancien code
-    SAGE_COLUMNS: Dict[str, int] = {
+    SAGE_COLUMNS: Dict[str, int] = field(default_factory=lambda: {
         'QUANTITE': int(os.getenv('SAGE_COL_QUANTITE', '5')),
         'CODE_ARTICLE': int(os.getenv('SAGE_COL_CODE_ARTICLE', '8')),  # Corrigé: 8 au lieu de 7
         'NUMERO_LOT': int(os.getenv('SAGE_COL_NUMERO_LOT', '14')),     # Corrigé: 14 au lieu de 13
         'NUMERO_SESSION': int(os.getenv('SAGE_COL_NUMERO_SESSION', '1')),
         'NUMERO_INVENTAIRE': int(os.getenv('SAGE_COL_NUMERO_INVENTAIRE', '2')),
         'SITE': int(os.getenv('SAGE_COL_SITE', '4')),
-    }
+    })
     
     def __post_init__(self):
         """Création automatique des dossiers"""

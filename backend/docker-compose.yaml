@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Backend Flask
   backend:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: sage_x3_backend
@@ -18,17 +18,10 @@ services:
       - sage_logs:/app/logs
       - sage_database:/app/database
       - sage_data:/app/data
+    env_file:
+      - ./.env
     environment:
       - FLASK_ENV=production
-      - DATABASE_URL=sqlite:///database/sage_x3.db
-      - SESSION_EXPIRY_HOURS=24
-      - CLEANUP_INTERVAL_MINUTES=60
-      - MAX_FILE_SIZE=16777216
-      - UPLOAD_FOLDER=uploads
-      - PROCESSED_FOLDER=processed
-      - FINAL_FOLDER=final
-      - ARCHIVE_FOLDER=archive
-      - LOG_FOLDER=logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
@@ -44,7 +37,7 @@ services:
       dockerfile: Dockerfile
     container_name: sage_x3_frontend
     ports:
-      - "80:80"
+      - "3000:3000"
     depends_on:
       - backend
     restart: unless-stopped

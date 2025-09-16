@@ -49,6 +49,63 @@ class FileProcessorService:
         self.lot_patterns = config_service.get_lot_patterns()
         logger.info("Configuration rechargée depuis le fichier externe")
 
+    def validate_completed_template(self, file) -> Tuple[bool, str, List[str]]:
+        """Valide le fichier template complété"""
+        try:
+            # Vérifier l'extension
+            filename = file.filename
+            if not filename.lower().endswith(('.xlsx', '.xls')):
+                return False, "Format de fichier non supporté. Utilisez Excel (.xlsx ou .xls)", []
+            
+            # Lire le contenu du fichier en mémoire
+            file.seek(0)
+            file_content = file.read()
+            file.seek(0)  # Remettre le curseur au début
+            
+            if len(file_content) == 0:
+                return False, "Fichier vide", []
+            
+            logger.info(f"Validation fichier: {filename}, taille: {len(file_content)} bytes")
+            
+            # Vérifier que c'est un fichier ZIP valide (Excel = ZIP)
+            import zipfile
+            import io
+            try:
+                with zipfile.ZipFile(io.BytesIO(file_content), 'r') as zip_ref:
+                    file_list = zip_ref.namelist()
+                    # Vérifier la présence de fichiers Excel essentiels
+                    required_excel_files = ['xl/workbook.xml', '[Content_Types].xml']
+                    missing_files = [f for f in required_excel_files if f not in file_list]
+                    if missing_files:
+                        return False, f"Fichier Excel invalide, fichiers manquants: {missing_files}", []
+            except zipfile.BadZipFile:
+                return False, "Fichier Excel corrompu (pas un ZIP valide)", []
+            
+            # Tester la lecture avec pandas
+            try:
+                df = pd.read_excel(io.BytesIO(file_content), engine='openpyxl')
+                logger.info(f"Lecture réussie: {len(df)} lignes, {len(df.columns)} colonnes")
+            except Exception as pandas_error:
+                logger.error(f"Erreur lecture pandas: {pandas_error}")
+                return False, f"Erreur lecture fichier Excel: {pandas_error}", []
+            
+            # Vérifier les colonnes requises
+            required_columns = ['Code Article', 'Numéro Inventaire', 'Quantité Théorique', 'Quantité Réelle']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                return False, f"Colonnes manquantes: {', '.join(missing_columns)}", missing_columns
+            
+            # Vérifier qu'il y a des données
+            if df.empty:
+                return False, "Le fichier ne contient aucune donnée", []
+            
+            return True, "Fichier valide", []
+                    
+        except Exception as e:
+            logger.error(f"Erreur validation template complété: {e}")
+            return False, f"Erreur validation: {e}", []
+
     def detect_file_format(self, filepath: str) -> Tuple[bool, str, Dict]:
         """Détecte automatiquement le format du fichier et sa structure"""
         try:
@@ -538,7 +595,6 @@ class FileProcessorService:
 
                 if original_lots.empty:
                     # Si pas de lots trouvés, créer une ligne avec les données agrégées
-                    # Vérifier si l'article a vraiment un numéro de lot ou non
                     template_rows.append(
                         {
                             "Numéro Session": row["Numero_Session"],
@@ -547,40 +603,27 @@ class FileProcessorService:
                             "Statut Article": row["STATUT"],
                             "Quantité Théorique": row["Quantite_Theorique_Totale"],
                             "Quantité Réelle": 0,
-                            "Numéro Lot": "",
                             "Unites": row["UNITE"],
                             "Depots": row["ZONE_PK"],
                             "Emplacements": row["EMPLACEMENT"],
                         }
                     )
                 else:
-                    # Créer une ligne par lot
-                    for _, lot_row in original_lots.iterrows():
-                        # Vérifier si le numéro de lot est valide
-                        numero_lot = lot_row["NUMERO_LOT"]
-                        if (
-                            pd.isna(numero_lot)
-                            or str(numero_lot).strip() == ""
-                            or str(numero_lot).strip().upper() == "NAN"
-                        ):
-                            numero_lot = ""  # Laisser vide si pas de lot
-                        else:
-                            numero_lot = str(numero_lot).strip()
-
-                        template_rows.append(
-                            {
-                                "Numéro Session": row["Numero_Session"],
-                                "Numéro Inventaire": row["NUMERO_INVENTAIRE"],
-                                "Code Article": row["CODE_ARTICLE"],
-                                "Statut Article": row["STATUT"],
-                                "Quantité Théorique": lot_row["QUANTITE"],
-                                "Quantité Réelle": 0,
-                                "Numéro Lot": numero_lot,
-                                "Unites": row["UNITE"],
-                                "Depots": row["ZONE_PK"],
-                                "Emplacements": row["EMPLACEMENT"],
-                            }
-                        )
+                    # Créer une ligne par lot - mais maintenant on agrège vraiment par article
+                    # Plus besoin de créer une ligne par lot individuel
+                    template_rows.append(
+                        {
+                            "Numéro Session": row["Numero_Session"],
+                            "Numéro Inventaire": row["NUMERO_INVENTAIRE"],
+                            "Code Article": row["CODE_ARTICLE"],
+                            "Statut Article": row["STATUT"],
+                            "Quantité Théorique": row["Quantite_Theorique_Totale"],
+                            "Quantité Réelle": 0,
+                            "Unites": row["UNITE"],
+                            "Depots": row["ZONE_PK"],
+                            "Emplacements": row["EMPLACEMENT"],
+                        }
+                    )
 
             template_df = pd.DataFrame(template_rows)
 

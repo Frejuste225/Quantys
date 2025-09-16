@@ -84,7 +84,7 @@ class LotecartProcessor:
         original_df: pd.DataFrame
     ) -> List[Dict[str, Any]]:
         """
-        Crée les ajustements pour les lots LOTECART
+        Crée les ajustements pour les lots LOTECART en vérifiant d'abord si des lignes existent déjà
         
         Args:
             lotecart_candidates: DataFrame des candidats LOTECART
@@ -105,7 +105,48 @@ class LotecartProcessor:
                 numero_inventaire = candidate.get("Numéro Inventaire", "")
                 quantite_reelle = float(candidate["Quantité Réelle"])
                 
-                # Trouver une ligne de référence dans les données originales
+                # Vérifier d'abord s'il existe déjà une ligne avec quantité théorique = 0 pour cet article
+                existing_zero_qty_line = original_df[
+                    (original_df["CODE_ARTICLE"] == code_article) &
+                    (original_df["NUMERO_INVENTAIRE"] == numero_inventaire) &
+                    (original_df["QUANTITE"] == 0)
+                ]
+                
+                if not existing_zero_qty_line.empty:
+                    # Ligne existante trouvée avec quantité = 0, la mettre à jour
+                    existing_line = existing_zero_qty_line.iloc[0]
+                    
+                    adjustment = {
+                        "CODE_ARTICLE": code_article,
+                        "NUMERO_INVENTAIRE": numero_inventaire,
+                        "NUMERO_LOT": existing_line.get("NUMERO_LOT", ""),  # Garder le lot original
+                        "TYPE_LOT": "lotecart",
+                        "QUANTITE_ORIGINALE": 0,  # Était 0 dans le fichier original
+                        "AJUSTEMENT": quantite_reelle,
+                        "QUANTITE_CORRIGEE": quantite_reelle,
+                        "Date_Lot": existing_line.get("Date_Lot"),
+                        "original_s_line_raw": existing_line.get("original_s_line_raw"),
+                        "is_new_lotecart": False,  # Pas une nouvelle ligne, mise à jour d'une existante
+                        "is_existing_update": True,  # Flag pour indiquer que c'est une mise à jour
+                        # Métadonnées pour traçabilité
+                        "metadata": {
+                            "detection_reason": "qty_theo_0_qty_real_positive",
+                            "existing_lot": existing_line.get("NUMERO_LOT", ""),
+                            "existing_site": existing_line.get("SITE", ""),
+                            "existing_emplacement": existing_line.get("EMPLACEMENT", ""),
+                            "update_type": "existing_line_update"
+                        }
+                    }
+                    
+                    adjustments.append(adjustment)
+                    
+                    logger.info(
+                        f"✅ Mise à jour ligne existante LOTECART: {code_article} "
+                        f"(Lot={existing_line.get('NUMERO_LOT', 'N/A')}, Qté=0→{quantite_reelle})"
+                    )
+                    continue
+                
+                # Si aucune ligne existante avec quantité = 0, chercher une ligne de référence pour créer une nouvelle ligne
                 reference_query = original_df["CODE_ARTICLE"] == code_article
                 
                 if numero_inventaire:
@@ -117,7 +158,7 @@ class LotecartProcessor:
                     # Prendre la première ligne comme référence
                     ref_lot = reference_lots.iloc[0]
                     
-                    # Créer l'ajustement LOTECART
+                    # Créer un nouvel ajustement LOTECART (nouvelle ligne)
                     adjustment = {
                         "CODE_ARTICLE": code_article,
                         "NUMERO_INVENTAIRE": numero_inventaire,
@@ -130,19 +171,21 @@ class LotecartProcessor:
                         "original_s_line_raw": None,  # Nouvelle ligne à créer
                         "reference_line": ref_lot.get("original_s_line_raw"),
                         "is_new_lotecart": True,  # Flag spécial LOTECART
+                        "is_existing_update": False,  # Pas une mise à jour, nouvelle ligne
                         # Métadonnées pour traçabilité
                         "metadata": {
                             "detection_reason": "qty_theo_0_qty_real_positive",
                             "reference_lot": ref_lot.get("NUMERO_LOT", ""),
                             "reference_site": ref_lot.get("SITE", ""),
-                            "reference_emplacement": ref_lot.get("EMPLACEMENT", "")
+                            "reference_emplacement": ref_lot.get("EMPLACEMENT", ""),
+                            "update_type": "new_line_creation"
                         }
                     }
                     
                     adjustments.append(adjustment)
                     
                     logger.info(
-                        f"✅ Ajustement LOTECART créé: {code_article} "
+                        f"✅ Nouvelle ligne LOTECART créée: {code_article} "
                         f"(Qté={quantite_reelle}, Ref={ref_lot.get('NUMERO_LOT', 'N/A')})"
                     )
                 else:
@@ -193,8 +236,32 @@ class LotecartProcessor:
                     )
                     continue
                 
-                # Parser la ligne de référence
-                parts = str(reference_line).split(";")
+                # Validation et conversion sécurisée de la ligne de référence
+                try:
+                    # Vérifier si c'est NaN (pour les floats)
+                    import pandas as pd
+                    if pd.isna(reference_line):
+                        logger.warning(
+                            f"⚠️ Ligne de référence NaN pour LOTECART {adjustment['CODE_ARTICLE']}"
+                        )
+                        continue
+                    
+                    # Convertir en string de manière sécurisée
+                    reference_line_str = str(reference_line).strip()
+                    if not reference_line_str or reference_line_str.lower() in ['nan', 'none', '']:
+                        logger.warning(
+                            f"⚠️ Ligne de référence vide ou invalide pour LOTECART {adjustment['CODE_ARTICLE']}"
+                        )
+                        continue
+                    
+                    # Parser la ligne de référence
+                    parts = reference_line_str.split(";")
+                    
+                except Exception as parse_error:
+                    logger.warning(
+                        f"⚠️ Erreur parsing ligne de référence pour LOTECART {adjustment['CODE_ARTICLE']}: {parse_error}"
+                    )
+                    continue
                 
                 if len(parts) < 15:
                     logger.warning(
@@ -340,6 +407,8 @@ class LotecartProcessor:
         try:
             total_quantity = 0
             articles_by_inventory = {}
+            existing_updates = 0
+            new_lines = 0
             
             if not lotecart_candidates.empty:
                 total_quantity = lotecart_candidates["Quantité Réelle"].sum()
@@ -355,16 +424,29 @@ class LotecartProcessor:
                         "quantity": row["Quantité Réelle"]
                     })
             
+            # Compter les types d'ajustements
+            for adjustment in lotecart_adjustments:
+                if adjustment.get("is_existing_update", False):
+                    existing_updates += 1
+                elif adjustment.get("is_new_lotecart", False):
+                    new_lines += 1
+            
             summary = {
                 "candidates_detected": len(lotecart_candidates),
                 "adjustments_created": len(lotecart_adjustments),
+                "existing_lines_updated": existing_updates,
+                "new_lines_created": new_lines,
                 "total_quantity": float(total_quantity),
                 "inventories_affected": len(articles_by_inventory),
                 "articles_by_inventory": articles_by_inventory,
                 "processing_timestamp": pd.Timestamp.now().isoformat()
             }
             
-            logger.info(f"📊 Résumé LOTECART: {summary['candidates_detected']} candidats, {summary['total_quantity']} unités")
+            logger.info(
+                f"📊 Résumé LOTECART: {summary['candidates_detected']} candidats, "
+                f"{existing_updates} lignes mises à jour, {new_lines} nouvelles lignes, "
+                f"{summary['total_quantity']} unités"
+            )
             
             return summary
             
@@ -373,6 +455,8 @@ class LotecartProcessor:
             return {
                 "candidates_detected": 0,
                 "adjustments_created": 0,
+                "existing_lines_updated": 0,
+                "new_lines_created": 0,
                 "total_quantity": 0,
                 "inventories_affected": 0,
                 "articles_by_inventory": {},

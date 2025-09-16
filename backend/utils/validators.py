@@ -214,7 +214,7 @@ class DataValidator:
         errors = []
         
         # Colonnes requises
-        required_columns = {'Numéro Session', 'Numéro Inventaire', 'Code Article', 'Quantité Théorique', 'Quantité Réelle', 'Numéro Lot'}
+        required_columns = {'Numéro Session', 'Numéro Inventaire', 'Code Article', 'Quantité Théorique', 'Quantité Réelle'}
         missing_columns = required_columns - set(df.columns)
         
         if missing_columns:
@@ -228,8 +228,8 @@ class DataValidator:
             # Vérification des valeurs manquantes
             missing_qty = real_qty.isna()
             if missing_qty.any():
-                missing_info = df.loc[missing_qty, ['Code Article', 'Numéro Inventaire', 'Numéro Lot']].apply(
-                    lambda x: f"{x['Code Article']} - Lot: {x['Numéro Lot']} (Inv: {x['Numéro Inventaire']})", axis=1
+                missing_info = df.loc[missing_qty, ['Code Article', 'Numéro Inventaire']].apply(
+                    lambda x: f"{x['Code Article']} (Inv: {x['Numéro Inventaire']})", axis=1
                 ).tolist()
                 errors.append(f"Quantités réelles manquantes pour: {', '.join(map(str, missing_info[:5]))}")
                 if len(missing_info) > 5:
@@ -238,8 +238,8 @@ class DataValidator:
             # Vérification des valeurs négatives
             negative_qty = real_qty < 0
             if negative_qty.any():
-                negative_info = df.loc[negative_qty, ['Code Article', 'Numéro Inventaire', 'Numéro Lot']].apply(
-                    lambda x: f"{x['Code Article']} - Lot: {x['Numéro Lot']} (Inv: {x['Numéro Inventaire']})", axis=1
+                negative_info = df.loc[negative_qty, ['Code Article', 'Numéro Inventaire']].apply(
+                    lambda x: f"{x['Code Article']} (Inv: {x['Numéro Inventaire']})", axis=1
                 ).tolist()
                 errors.append(f"Quantités négatives pour: {', '.join(map(str, negative_info[:5]))}")
             
